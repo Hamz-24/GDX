@@ -1,14 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Play, Sparkles, CheckCircle2, ArrowRight, BookOpen, Clock, ShieldCheck, Database, Cpu, Key, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { USER_PROFILE, CORE_GOALS, generatePersonalizedRoadmap } from '../constants/userProfile';
-
-const STEPS = [
-  { num: 1, key: 'understand', label: '01 UNDERSTAND' },
-  { num: 2, key: 'see',        label: '02 SEE IT' },
-  { num: 3, key: 'try',        label: '03 TRY IT' },
-  { num: 4, key: 'prove',      label: '04 PROVE IT' },
-];
+import { USER_PROFILE, generatePersonalizedRoadmap } from '../constants/userProfile';
+import { useAuth } from '../context/AuthContext';
 
 /**
  * Dynamic Concept Generator for ANY Day and ANY Domain
@@ -16,21 +10,20 @@ const STEPS = [
 function getConceptForDayAndDomain(domainName, dayNum) {
   const roadmapWeeks = generatePersonalizedRoadmap(domainName, 4, 'Basic / Beginner');
   
-  // Find topic matching dayNum across roadmap
-  let foundTopic = `Day ${dayNum} Core Module`;
+  let foundTopic = `Core Module`;
   let phaseTitle = domainName;
   
   for (const week of roadmapWeeks) {
     for (const d of week.days) {
       if (d.day === Number(dayNum)) {
-        foundTopic = d.title.replace(`Day ${dayNum}: `, '');
+        foundTopic = d.title.replace(/^Day \d+:\s*/, '');
         phaseTitle = week.title;
         break;
       }
     }
   }
 
-  const dUpper = domainName.toUpperCase();
+  const dUpper = (domainName || '').toUpperCase();
 
   // 1. DATA STRUCTURES CONCEPTS
   if (dUpper.includes('DATA') || dUpper.includes('DS')) {
@@ -141,12 +134,20 @@ function verifyAuthToken(req, res, next) {
   };
 }
 
+const STEPS = [
+  { num: 1, key: 'understand', label: '01 UNDERSTAND' },
+  { num: 2, key: 'see',        label: '02 SEE IT' },
+  { num: 3, key: 'try',        label: '03 TRY IT' },
+  { num: 4, key: 'prove',      label: '04 PROVE IT' },
+];
+
 const DailyConcept = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { user } = useAuth();
 
-  // Selected Domain & Day Number State
-  const [selectedDomain, setSelectedDomain] = useState(location.state?.domain || USER_PROFILE.targetRole || 'DATA STRUCTURES');
+  // Selected Domain locked to user's active goal
+  const selectedDomain = user?.goal || location.state?.domain || USER_PROFILE.targetRole || 'DATA STRUCTURES';
   const [currentDayNum, setCurrentDayNum] = useState(location.state?.day || 3);
 
   // Dynamic Concept Data for active Domain and Day!
@@ -235,7 +236,7 @@ const DailyConcept = () => {
           <button
             onClick={handlePrevDay}
             disabled={currentDayNum <= 1}
-            className="p-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 disabled:opacity-40 transition-colors text-xs font-mono font-bold flex items-center gap-1"
+            className="p-2 px-3 rounded-xl bg-zinc-800 hover:bg-zinc-700 disabled:opacity-40 transition-colors text-xs font-mono font-bold flex items-center gap-1"
           >
             <ChevronLeft size={14} /> Prev Day
           </button>
@@ -284,27 +285,6 @@ const DailyConcept = () => {
         </button>
       </div>
 
-      {/* Domain Switcher Chips */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-1">
-        {CORE_GOALS.map(g => (
-          <button
-            key={g.id}
-            onClick={() => setSelectedDomain(g.name)}
-            className={`px-4 py-2 rounded-full text-xs font-mono font-bold whitespace-nowrap transition-all flex items-center gap-1.5 ${
-              selectedDomain === g.name
-                ? 'bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 shadow-sm'
-                : 'bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-500 hover:text-zinc-900 dark:hover:text-white'
-            }`}
-          >
-            {g.name === 'DATA STRUCTURES' && <Cpu size={13} className="text-[#F5C542]" />}
-            {g.name === 'DATABASE' && <Database size={13} className="text-[#F5C542]" />}
-            {g.name === 'SYSTEM DESIGN' && <Sparkles size={13} className="text-[#F5C542]" />}
-            {g.name === 'AUTHENTICATION' && <Key size={13} className="text-[#F5C542]" />}
-            <span>{g.name}</span>
-          </button>
-        ))}
-      </div>
-
       {/* 4-Step Progress Tracker */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         {STEPS.map((step) => {
@@ -334,7 +314,7 @@ const DailyConcept = () => {
           <div className="space-y-1">
             <span className="text-[10px] font-mono font-bold text-amber-500 uppercase tracking-widest block">01 CONCEPT INTUITION</span>
             <h2 className="text-xl font-extrabold font-display text-zinc-900 dark:text-white">
-              Why Day {currentDayNum} ({concept.title}) Matters
+              Why Day {currentDayNum}: {concept.title} Matters
             </h2>
           </div>
 
@@ -444,7 +424,7 @@ const DailyConcept = () => {
 
           <div className="rounded-2xl overflow-hidden border border-zinc-800 shadow-sm">
             <div className="px-4 py-2.5 bg-zinc-950 text-[11px] font-mono text-amber-400 font-bold border-b border-zinc-800 flex justify-between">
-              <span>day_{currentDayNum}_{concept.title.toLowerCase().replace(/[^a-z0-0]/g, '_')}</span>
+              <span>day_{currentDayNum}_{concept.title.toLowerCase().replace(/[^a-z0-9]/g, '_')}</span>
               <span className="text-zinc-500">Day {currentDayNum} Production Code</span>
             </div>
             <pre className="p-4 bg-zinc-900 text-zinc-100 font-mono text-xs overflow-x-auto leading-relaxed">{concept.codeSnippet}</pre>
