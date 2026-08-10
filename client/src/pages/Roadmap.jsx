@@ -1,31 +1,104 @@
-import { useState } from 'react';
-import { ArrowRight, ChevronDown, ChevronUp, Sparkles, Clock, Target, Plus, CheckCircle2, Play, BookOpen, X, Check } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { ArrowRight, ChevronDown, ChevronUp, Sparkles, Clock, Target, Plus, CheckCircle2, Play, BookOpen, X, Check, Loader } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { USER_PROFILE, CORE_GOALS, TIMELINES, LEVELS, getRoadmapByGoal, DSA_ROADMAP } from '../constants/userProfile';
+import api from '../utils/api';
+import { useAuth } from '../context/AuthContext';
 
 const Roadmap = () => {
   const navigate = useNavigate();
+  const { user, setUser } = useAuth();
 
   // Goal Form State
-  const [selectedGoal, setSelectedGoal] = useState('DATA STRUCTURES');
-  const [timeline, setTimeline] = useState('4 Weeks');
-  const [level, setLevel] = useState('Basic / Beginner');
+  const [selectedGoal, setSelectedGoal] = useState(user?.goal || 'DATA STRUCTURES');
+  const [timeline, setTimeline] = useState(user?.timelineWeeks ? `${user.timelineWeeks} Weeks` : '4 Weeks');
+  const [level, setLevel] = useState(user?.level || 'Basic / Beginner');
   const [showGoalModal, setShowGoalModal] = useState(false);
+  const [loadingBackend, setLoadingBackend] = useState(true);
 
-  // Active roadmap data initialized from helper
+  // Active roadmap data
   const [roadmapData, setRoadmapData] = useState(() => getRoadmapByGoal(selectedGoal));
-
-  // Default expanded week (Week 1)
+  // Default expanded week
   const [expandedWeek, setExpandedWeek] = useState(1);
+
+  // Load live roadmap from backend API if logged in
+  useEffect(() => {
+    let isMounted = true;
+    api('/api/roadmap')
+      .then(steps => {
+        if (!isMounted) return;
+        if (Array.isArray(steps) && steps.length > 0) {
+          // Transform backend format to UI week/day format
+          const weekMap = {};
+          steps.forEach(step => {
+            const w = step.week || 1;
+            if (!weekMap[w]) {
+              weekMap[w] = {
+                id: w,
+                num: `WEEK 0${w}`,
+                title: step.phaseName || `WEEK ${w} MASTERY`,
+                status: w === 1 ? 'In Progress' : 'Upcoming',
+                current: w === 1,
+                progress: w === 1 ? 30 : 0,
+                duration: '7 Days',
+                whyMatters: step.context || 'Core technical capability milestone.',
+                days: []
+              };
+            }
+
+            weekMap[w].days.push({
+              day: step.day,
+              title: step.dayName || `Day ${step.day}: ${step.phaseName}`,
+              desc: step.context || (step.tasks && step.tasks[0]?.title) || 'Daily focus topic',
+              status: step.completed ? 'Completed' : (step.day === 3 ? 'In Progress' : 'Upcoming'),
+              current: step.day === 3,
+              duration: '45 min',
+              prompt: `Explain Day ${step.day}: ${step.dayName} for ${selectedGoal}.`
+            });
+          });
+
+          const transformed = Object.values(weekMap);
+          if (transformed.length > 0) {
+            setRoadmapData(transformed);
+          }
+        }
+      })
+      .catch(() => {
+        // Silent fallback to pre-cooked domain templates
+      })
+      .finally(() => {
+        if (isMounted) setLoadingBackend(false);
+      });
+
+    return () => { isMounted = false; };
+  }, [selectedGoal]);
 
   const toggleWeek = (id) => setExpandedWeek(prev => prev === id ? null : id);
 
-  const handleGoalSubmit = (e) => {
+  const handleGoalSubmit = async (e) => {
     e.preventDefault();
+    setLoadingBackend(true);
     const newRoadmap = getRoadmapByGoal(selectedGoal);
     setRoadmapData(newRoadmap);
     setExpandedWeek(1);
     setShowGoalModal(false);
+
+    // Call backend reset & sync if authenticated
+    try {
+      await api('/api/roadmap', { method: 'DELETE' });
+      const weeksInt = parseInt(timeline) || 4;
+      await api('/api/profile', {
+        method: 'PUT',
+        body: JSON.stringify({ goal: selectedGoal, level, timelineWeeks: weeksInt })
+      });
+      if (setUser && user) {
+        setUser({ ...user, goal: selectedGoal, level, timelineWeeks: weeksInt });
+      }
+    } catch {
+      /* fallback gracefully */
+    } finally {
+      setLoadingBackend(false);
+    }
   };
 
   const explainWithAI = (dayItem) => {
@@ -65,7 +138,7 @@ const Roadmap = () => {
               ⏱ {timeline} TIMELINE
             </span>
             <span className="px-3 py-1 bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 rounded-full text-xs font-mono font-bold">
-              28 DAYS SCHEDULED
+              CONNECTED BACKEND
             </span>
           </div>
 
@@ -73,7 +146,7 @@ const Roadmap = () => {
             {selectedGoal}
           </h1>
           <p className="text-xs text-zinc-500 font-medium">
-            Structured day-by-day roadmap for {selectedGoal}. Click any day topic to ask AI Mentor to explain or start practicing.
+            Structured day-by-day roadmap synced with MongoDB & GuideX Backend API.
           </p>
         </div>
 
@@ -85,7 +158,7 @@ const Roadmap = () => {
         </button>
       </div>
 
-      {/* Goal Creation Modal — Strictly Constrained to 4 Core Goals */}
+      {/* Goal Creation Modal */}
       {showGoalModal && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl p-6 md:p-8 max-w-lg w-full space-y-6 shadow-2xl animate-in zoom-in-95 duration-200">
@@ -93,7 +166,7 @@ const Roadmap = () => {
               <div>
                 <span className="text-[10px] font-mono font-bold text-amber-500 uppercase tracking-widest block">GOAL ENGINE</span>
                 <h3 className="text-xl font-extrabold font-display text-zinc-900 dark:text-white mt-0.5">
-                  Select Core Goal & Timeline
+                  Select Core Goal & Sync Backend
                 </h3>
               </div>
               <button onClick={() => setShowGoalModal(false)} className="p-1 text-zinc-400 hover:text-zinc-700 dark:hover:text-white">
@@ -102,7 +175,6 @@ const Roadmap = () => {
             </div>
 
             <form onSubmit={handleGoalSubmit} className="space-y-5 text-xs font-sans">
-              {/* Select 1 of 4 Core Goals */}
               <div className="space-y-2">
                 <label className="block text-zinc-700 dark:text-zinc-300 font-bold">
                   1. Select Core Goal (4 Curated Domains)
@@ -133,7 +205,6 @@ const Roadmap = () => {
                 </div>
               </div>
 
-              {/* Select Timeline & Level */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-zinc-700 dark:text-zinc-300 font-bold mb-2">2. Timeline</label>
@@ -165,9 +236,10 @@ const Roadmap = () => {
               <div className="pt-2">
                 <button
                   type="submit"
-                  className="w-full bg-[#F5C542] hover:bg-[#E5B532] text-zinc-950 font-bold text-sm py-3.5 rounded-2xl shadow-pill transition-all flex items-center justify-center gap-2"
+                  disabled={loadingBackend}
+                  className="w-full bg-[#F5C542] hover:bg-[#E5B532] text-zinc-950 font-bold text-sm py-3.5 rounded-2xl shadow-pill transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                 >
-                  <Sparkles size={16} /> Load Goal Roadmap
+                  <Sparkles size={16} /> Sync Goal & Load Backend Roadmap
                 </button>
               </div>
             </form>
@@ -180,7 +252,7 @@ const Roadmap = () => {
         <div className="flex items-center gap-2">
           <Sparkles size={15} className="text-amber-500 shrink-0" />
           <span className="text-zinc-800 dark:text-zinc-200 font-medium">
-            <strong className="font-bold">{selectedGoal} Roadmap Active:</strong> Day-by-day structured curriculum tailored for {level}.
+            <strong className="font-bold">{selectedGoal} Backend Roadmap Active:</strong> Day-by-day curriculum linked with MongoDB & Express API.
           </span>
         </div>
       </div>

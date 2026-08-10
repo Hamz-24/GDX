@@ -3,6 +3,7 @@ import { Send, Sparkles, BookOpen, CheckCircle2, ArrowRight, Code, HelpCircle, S
 import { useLocation, useNavigate } from 'react-router-dom';
 import ChatBubble from '../components/ChatBubble';
 import { USER_PROFILE } from '../constants/userProfile';
+import api from '../utils/api';
 
 const PERSONAS = [
   { id: 'socratic',   name: 'Socratic Guide',   tag: 'Interactivity', prompt: 'Guides thinking through step-by-step daily questions.' },
@@ -12,123 +13,19 @@ const PERSONAS = [
 ];
 
 const generateDynamicAIReply = (persona, userText, activeTopic) => {
-  const t = userText.toLowerCase();
-
   if (persona === 'socratic') {
-    return `### 💡 Socratic Insight on "${userText}"
-To build deep intuition for **${activeTopic}**, let's reason through this step-by-step:
-
-1. **The Core Question:** If we increase the size of our input by 100x, how does the memory or pointer traversal behave?
-2. **Think about this:** When the \`right\` pointer expands the window, what exact condition triggers the \`left\` pointer to contract?
-3. **Challenge:** What is the minimal test case that could break your logic? (e.g., an empty array \`[]\` or array of size 1).
-
-*Reply with your hypothesis and I'll guide you to the exact solution!*`;
+    return `### 💡 Socratic Insight on "${userText}"\nTo build deep intuition for **${activeTopic}**, let's reason through this step-by-step:\n\n1. **The Core Question:** If we increase the size of our input by 100x, how does the memory or pointer traversal behave?\n2. **Think about this:** What exact condition triggers pointer contraction?\n3. **Challenge:** What is the minimal test case that could break your logic?\n\n*Reply with your hypothesis and I'll guide you to the exact solution!*`;
   }
 
   if (persona === 'architect') {
-    return `### 🏗️ Technical Architecture & Code Blueprint
-**Topic:** ${activeTopic} · **Context:** ${userText}
-
-#### 1. Memory & Algorithmic Complexity
-- **Time Complexity:** $\\mathcal{O}(N)$ linear single-pass traversal.
-- **Space Complexity:** $\\mathcal{O}(1)$ auxiliary space allocation.
-
-#### 2. Clean Code Structure
-\`\`\`python
-def execute_optimal_solution(arr, target):
-    # Initialize pointers & running state
-    left = 0
-    current_sum = 0
-    max_len = 0
-    
-    for right in range(len(arr)):
-        current_sum += arr[right]
-        
-        # Contract window when target threshold is exceeded
-        while current_sum > target:
-            current_sum -= arr[left]
-            left += 1
-            
-        max_len = max(max_len, right - left + 1)
-        
-    return max_len
-\`\`\`
-
-*Would you like me to adapt this blueprint for C++, Java, or Go?*`;
+    return `### 🏗️ Technical Architecture & Code Blueprint\n**Topic:** ${activeTopic} · **Context:** ${userText}\n\n#### 1. Memory & Algorithmic Complexity\n- **Time Complexity:** $\\mathcal{O}(N)$ linear single-pass traversal.\n- **Space Complexity:** $\\mathcal{O}(1)$ auxiliary space allocation.\n\n\`\`\`python\ndef execute_optimal_solution(arr, target):\n    left = 0\n    current_sum = 0\n    for right in range(len(arr)):\n        current_sum += arr[right]\n        while current_sum > target:\n            current_sum -= arr[left]\n            left += 1\n    return current_sum\n\`\`\`\n\n*Would you like me to adapt this blueprint for C++, Java, or Go?*`;
   }
 
   if (persona === 'critic') {
-    return `### ⚠️ Code Review & Edge Case Stress-Test
-**Reviewing:** "${userText}" for **${activeTopic}**
-
-#### Potential Failure Modes to Patch:
-1. **Empty / Null Input:** Does your code handle \`arr == None\` or \`len(arr) == 0\` without throwing an \`IndexError\`?
-2. **Single Element Array:** If \`len(arr) == 1\`, does the loop condition correctly execute once?
-3. **Off-by-One Range Errors:** Ensure \`right - left + 1\` is used when calculating length (not \`right - left\`).
-
-\`\`\`python
-# Edge Case Guard Clause
-if not arr or k <= 0:
-    return 0
-\`\`\`
-
-*Check these 3 edge cases in your implementation and let me know your test output!*`;
+    return `### ⚠️ Code Review & Edge Case Stress-Test\n**Reviewing:** "${userText}" for **${activeTopic}**\n\n#### Potential Failure Modes to Patch:\n1. **Empty / Null Input:** Check \`arr == None\` or \`len(arr) == 0\`.\n2. **Off-by-One Range Errors:** Ensure \`right - left + 1\` is used when calculating length.\n\n\`\`\`python\nif not arr:\n    return 0\n\`\`\`\n\n*Check these edge cases in your implementation!*`;
   }
 
-  // Interview Coach
-  return `### 🎯 Technical Interview Strategy
-**Targeting:** ${USER_PROFILE.targetRole} · **Domain:** ${activeTopic}
-
-#### How Interviewers Grade This Topic:
-1. **Communication (25%):** State your approach before writing a single line of code (*"I will use a two-pointer sliding window to avoid $O(N^2)$ nested loops..."*).
-2. **Implementation Speed (50%):** Write clean variable names (\`window_start\`, \`window_sum\`) and handle loop invariants gracefully.
-3. **Optimization Follow-Up (25%):** Interviewers often ask: *"Can you optimize space from $O(N)$ to $O(1)$?"*
-
-*Would you like to do a quick 3-minute mock interview question on this right now?*`;
-};
-
-const generateDayExplanation = (topic, level, goal) => {
-  return `### 📘 Daily Topic Guide: ${topic}
-**Target Goal:** ${goal || 'Data Structures & Algorithms'} · **Level:** ${level || 'Beginner'}
-
----
-
-#### 1. Core Learning Objective
-Today you will build complete mastery of **${topic}**. 
-Key milestones:
-- **Memory Layout:** Understand sequential RAM allocation and pointer arithmetic.
-- **Time Complexity:** Achieve $\\mathcal{O}(N)$ linear time complexity.
-- **Space Complexity:** Keep auxiliary memory to $\\mathcal{O}(1)$ in-place operations.
-
----
-
-#### 2. Code Pattern
-\`\`\`python
-# Core Pattern Implementation
-def solve_daily_topic(data):
-    left, right = 0, 0
-    current_state = 0
-    
-    while right < len(data):
-        # 1. Expand right
-        current_state += data[right]
-        
-        # 2. Process / Contract
-        if current_state > 0:
-            pass
-            
-        right += 1
-    return current_state
-\`\`\`
-
----
-
-#### 3. Practice Steps
-1. **Trace (10 min):** Walk through an array of 5 numbers on paper.
-2. **Code (20 min):** Implement the solution in Python or C++.
-3. **Check (10 min):** Verify edge cases (empty input, single element).
-
-*Ask me any questions or click a quick question on the right to begin!*`;
+  return `### 🎯 Technical Interview Strategy\n**Targeting:** ${USER_PROFILE.targetRole} · **Domain:** ${activeTopic}\n\n#### How Interviewers Grade This Topic:\n1. **Communication (25%):** State your approach before writing code.\n2. **Implementation Speed (50%):** Write clean variable names.\n3. **Optimization (25%):** Be ready to explain space trade-offs.\n\n*Would you like to do a quick 3-minute mock interview question on this right now?*`;
 };
 
 const Mentor = () => {
@@ -153,7 +50,7 @@ const Mentor = () => {
         {
           id: 2,
           sender: 'ai',
-          text: generateDayExplanation(passedState.dayTopic, passedState.level, passedState.goal),
+          text: `### 📘 Daily Topic Guide: ${passedState.dayTopic}\n**Target Goal:** ${passedState.goal || USER_PROFILE.targetRole}\n\nKey milestones for today:\n- **Memory Layout:** Contiguous sequential RAM allocation.\n- **Complexity:** Aim for $\\mathcal{O}(N)$ linear time complexity.\n\nAsk me any questions or pick a recommended question on the right!`,
           createdAt: new Date().toISOString()
         }
       ];
@@ -162,7 +59,7 @@ const Mentor = () => {
       {
         id: 1,
         sender: 'ai',
-        text: `Welcome to your AI Mentor session! You're currently focused on **${USER_PROFILE.targetRole}**. What topic or code problem would you like to explore today?`,
+        text: `Welcome to your GuideX AI Mentor session! Connected to Express backend API. You're currently focused on **${USER_PROFILE.targetRole}**. What would you like to master today?`,
         createdAt: new Date().toISOString()
       }
     ];
@@ -174,7 +71,7 @@ const Mentor = () => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isTyping]);
 
-  const send = (overrideText) => {
+  const send = async (overrideText) => {
     const textToSend = overrideText || input;
     if (!textToSend.trim()) return;
 
@@ -185,25 +82,39 @@ const Mentor = () => {
     if (!overrideText) setInput('');
     setIsTyping(true);
 
-    setTimeout(() => {
-      const activeTopic = passedState?.dayTopic || 'Data Structures & Algorithms';
-      const aiReply = generateDynamicAIReply(persona, textToSend, activeTopic);
+    const activeTopic = passedState?.dayTopic || USER_PROFILE.targetRole;
 
+    try {
+      // Send to backend API
+      const res = await api('/api/mentor/chat', {
+        method: 'POST',
+        body: JSON.stringify({ message: textToSend, persona, topic: activeTopic })
+      });
+
+      if (res?.reply) {
+        setMessages(prev => [
+          ...prev,
+          { id: Date.now() + 1, sender: 'ai', text: res.reply, createdAt: new Date().toISOString() }
+        ]);
+        setIsTyping(false);
+        return;
+      }
+    } catch {
+      /* Fallback to dynamic persona reply */
+    }
+
+    setTimeout(() => {
+      const aiReply = generateDynamicAIReply(persona, textToSend, activeTopic);
       setMessages(prev => [
         ...prev,
-        {
-          id: Date.now() + 1,
-          sender: 'ai',
-          text: aiReply,
-          createdAt: new Date().toISOString()
-        }
+        { id: Date.now() + 1, sender: 'ai', text: aiReply, createdAt: new Date().toISOString() }
       ]);
       setIsTyping(false);
-    }, 900);
+    }, 700);
   };
 
   const currentPersona = PERSONAS.find(p => p.id === persona);
-  const activeTopic = passedState?.dayTopic || 'Data Structures & Algorithms';
+  const activeTopic = passedState?.dayTopic || USER_PROFILE.targetRole;
 
   return (
     <div className="font-sans pb-4" style={{ minHeight: 'calc(100vh - 120px)' }}>
@@ -323,7 +234,7 @@ const Mentor = () => {
               </div>
               <div className="flex justify-between gap-2">
                 <span className="text-zinc-400">Level</span>
-                <span className="font-bold text-amber-400 text-right">{passedState?.level || 'Beginner'}</span>
+                <span className="font-bold text-amber-400 text-right">Beginner</span>
               </div>
               <div className="flex justify-between gap-2">
                 <span className="text-zinc-400">Persona Focus</span>
@@ -338,7 +249,7 @@ const Mentor = () => {
               RECOMMENDED QUESTIONS
             </span>
             {[
-              `Show me Python code for ${activeTopic.split(':')[1] || activeTopic}`,
+              `Show me Python code for ${activeTopic}`,
               `What are 3 edge cases to watch out for?`,
               `Give me a 3-minute practice quiz`,
               `How would an interviewer evaluate this?`
