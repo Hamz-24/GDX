@@ -1,13 +1,15 @@
-import { Link, useNavigate } from 'react-router-dom';
-import { ArrowRight, Mail, Lock, User, Target, BrainCircuit } from 'lucide-react';
+import { Link, useNavigate } from 'react';
+import { ArrowRight, Mail, Lock, User, Target, BrainCircuit, Check } from 'lucide-react';
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { CORE_GOALS, TIMELINES, LEVELS } from '../constants/userProfile';
 
 const SignupPage = () => {
   const navigate = useNavigate();
   const { register } = useAuth();
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [selectedGoal, setSelectedGoal] = useState('DATA STRUCTURES');
 
   const handleSignup = async (e) => {
     e.preventDefault();
@@ -15,7 +17,14 @@ const SignupPage = () => {
     setLoading(true);
     const form = e.target;
     try {
-      await register(form.name.value, form.email.value, form.password.value, form.goal.value, form.level.value, form.timelineWeeks.value);
+      await register(
+        form.name.value,
+        form.email.value,
+        form.password.value,
+        selectedGoal,
+        form.level.value,
+        form.timelineWeeks.value
+      );
       navigate('/dashboard');
     } catch (err) {
       setError(err.message);
@@ -38,13 +47,13 @@ const SignupPage = () => {
       </Link>
 
       {/* Signup Card */}
-      <div className="bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 rounded-3xl w-full max-w-md p-8 shadow-card space-y-6">
+      <div className="bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 rounded-3xl w-full max-w-lg p-6 sm:p-8 shadow-card space-y-6">
         <div className="text-center space-y-1">
           <h2 className="text-2xl font-bold font-display text-zinc-900 dark:text-white">Create your account</h2>
-          <p className="text-xs text-zinc-500 font-medium">Set up your target career goal & AI curriculum parameters.</p>
+          <p className="text-xs text-zinc-500 font-medium">Select your core engineering goal & AI curriculum parameters.</p>
         </div>
 
-        <form onSubmit={handleSignup} className="space-y-4">
+        <form onSubmit={handleSignup} className="space-y-5">
           {error && (
             <div className="p-3.5 rounded-2xl bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs font-semibold">
               {error}
@@ -75,29 +84,52 @@ const SignupPage = () => {
             </div>
           </div>
 
-          <div className="space-y-1">
-            <label className="text-xs font-bold font-mono text-zinc-500 dark:text-zinc-400 uppercase">Target Technical Role</label>
-            <div className="relative">
-              <Target className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400" size={18} />
-              <input name="goal" type="text" className="w-full bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-white pl-11 pr-4 py-2.5 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-[#F5C542]" placeholder="e.g. AI/ML Engineer, Full-Stack Developer" required />
+          {/* 4 CORE GOAL DOMAIN CARDS */}
+          <div className="space-y-2">
+            <label className="text-xs font-bold font-mono text-zinc-500 dark:text-zinc-400 uppercase block">
+              Select Core Goal (4 Curated Domains)
+            </label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              {CORE_GOALS.map(g => (
+                <button
+                  type="button"
+                  key={g.id}
+                  onClick={() => setSelectedGoal(g.name)}
+                  className={`p-3.5 rounded-2xl border text-left transition-all ${
+                    selectedGoal === g.name
+                      ? 'bg-amber-50 dark:bg-amber-950/40 border-[#F5C542] ring-1 ring-[#F5C542]'
+                      : 'bg-zinc-100 dark:bg-zinc-800/40 border-zinc-200 dark:border-zinc-700/60 hover:border-amber-300'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-extrabold font-display text-zinc-900 dark:text-white text-xs">
+                      {g.name}
+                    </span>
+                    {selectedGoal === g.name && <Check size={14} className="text-[#F5C542]" />}
+                  </div>
+                  <span className="text-[10px] text-zinc-500 block mt-1 leading-snug">
+                    {g.desc}
+                  </span>
+                </button>
+              ))}
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <label className="text-xs font-bold font-mono text-zinc-500 dark:text-zinc-400 uppercase">Level</label>
-              <select name="level" className="w-full bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-white px-4 py-2.5 rounded-full text-xs font-semibold focus:outline-none cursor-pointer" required defaultValue="intermediate">
-                <option value="beginner">Beginner</option>
-                <option value="intermediate">Intermediate</option>
-                <option value="advanced">Advanced</option>
+              <select name="level" className="w-full bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-white px-4 py-2.5 rounded-full text-xs font-semibold focus:outline-none cursor-pointer" required defaultValue="Basic / Beginner">
+                {LEVELS.map(l => (
+                  <option key={l} value={l}>{l}</option>
+                ))}
               </select>
             </div>
 
             <div className="space-y-1">
               <label className="text-xs font-bold font-mono text-zinc-500 dark:text-zinc-400 uppercase">Timeline</label>
-              <select name="timelineWeeks" className="w-full bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-white px-4 py-2.5 rounded-full text-xs font-semibold focus:outline-none cursor-pointer" required defaultValue="4">
-                {[1, 2, 4, 8, 12].map(w => (
-                  <option key={w} value={w}>{w} Week{w > 1 ? 's' : ''}</option>
+              <select name="timelineWeeks" className="w-full bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-white px-4 py-2.5 rounded-full text-xs font-semibold focus:outline-none cursor-pointer" required defaultValue="4 Weeks">
+                {TIMELINES.map(t => (
+                  <option key={t} value={t}>{t}</option>
                 ))}
               </select>
             </div>
