@@ -1,6 +1,6 @@
-import { Link, useNavigate } from 'react';
-import { ArrowRight, Mail, Lock, User, Target, BrainCircuit, Check } from 'lucide-react';
 import { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { ArrowRight, Mail, Lock, User, Target, BrainCircuit, Check } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { CORE_GOALS, TIMELINES, LEVELS } from '../constants/userProfile';
 
