@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
-import { Play, Sparkles, CheckCircle2, ArrowRight, BookOpen, Clock, ShieldCheck, Database, Cpu, Key, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Play, Sparkles, CheckCircle2, ArrowRight, BookOpen, Clock, ShieldCheck, Database, Cpu, Key, ChevronLeft, ChevronRight, Grid, Network, Layers, FileCode } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { USER_PROFILE, generatePersonalizedRoadmap } from '../constants/userProfile';
 import { useAuth } from '../context/AuthContext';
 
 /**
  * Dynamic Concept Generator for ANY Day and ANY Domain
+ * Returns custom visualizer types: MATRIX_2D, SLIDING_WINDOW, LINKED_LIST, TREE_GRAPH, B_TREE_INDEX, HASH_RING, JWT_TOKEN
  */
 function getConceptForDayAndDomain(domainName, dayNum) {
   const roadmapWeeks = generatePersonalizedRoadmap(domainName, 4, 'Basic / Beginner');
@@ -23,113 +24,246 @@ function getConceptForDayAndDomain(domainName, dayNum) {
     }
   }
 
+  const topicLower = (foundTopic || '').toLowerCase();
   const dUpper = (domainName || '').toUpperCase();
 
-  // 1. DATA STRUCTURES CONCEPTS
-  if (dUpper.includes('DATA') || dUpper.includes('DS')) {
+  // Detect visualizer type based on topic title
+  let visualType = 'SLIDING_WINDOW';
+  if (topicLower.includes('matrix') || topicLower.includes('2d') || topicLower.includes('grid')) {
+    visualType = 'MATRIX_2D';
+  } else if (topicLower.includes('linked list') || topicLower.includes('stack') || topicLower.includes('queue')) {
+    visualType = 'LINKED_LIST';
+  } else if (topicLower.includes('tree') || topicLower.includes('graph') || topicLower.includes('dfs') || topicLower.includes('bfs') || topicLower.includes('bst')) {
+    visualType = 'TREE_GRAPH';
+  } else if (dUpper.includes('DATABASE') || dUpper.includes('DB')) {
+    visualType = 'B_TREE_INDEX';
+  } else if (dUpper.includes('SYSTEM') || dUpper.includes('SYS')) {
+    visualType = 'HASH_RING';
+  } else if (dUpper.includes('AUTH') || dUpper.includes('AUTHENTICATION')) {
+    visualType = 'JWT_TOKEN';
+  }
+
+  // 1. 2D MATRIX VISUALIZER DATA
+  if (visualType === 'MATRIX_2D') {
     return {
+      visualType: 'MATRIX_2D',
       title: foundTopic,
       phase: phaseTitle,
-      subtitle: `Master ${foundTopic} with linear execution efficiency and optimal space complexity.`,
-      whyMatters: `${foundTopic} is a core algorithmic primitive used in high-performance software engineering.`,
-      nodes: [`Node 1: Init`, `Node 2: Pointers`, `Node 3: Process`, `Node 4: Return`],
-      codeSnippet: `# ${foundTopic} Implementation
-def solve_day_${dayNum}(data_input):
-    # Step 1: Initialize structural pointers
-    left, right = 0, len(data_input) - 1
-    result = []
-    
-    # Step 2: Iterate through inputs in O(N) time
-    while left <= right:
-        if data_input[left] <= data_input[right]:
-            result.append(data_input[left])
-            left += 1
-        else:
-            result.append(data_input[right])
-            right -= 1
-            
-    return result`,
-      quizQuestion: `What is the optimal Time Complexity for ${foundTopic}?`,
+      subtitle: `Understand row-major vs column-major 2D matrix memory storage and cell-by-cell grid traversal.`,
+      whyMatters: `2D matrices represent grids, image pixels, game boards, and DP tables in memory. Memory formula: Index = r * COLS + c.`,
+      gridData: [
+        [10, 20, 30],
+        [40, 50, 60],
+        [70, 80, 90]
+      ],
+      codeSnippet: `# 2D Matrix Row-Major Grid Traversal
+grid = [
+  [10, 20, 30],
+  [40, 50, 60],
+  [70, 80, 90]
+]
+
+ROWS, COLS = len(grid), len(grid[0])
+
+# Row-major traversal (sequential memory access)
+for r in range(ROWS):
+    for c in range(COLS):
+        ram_offset = r * COLS + c
+        val = grid[r][c]
+        print(f"Row {r}, Col {c} -> Val: {val} (RAM Offset: {ram_offset})")`,
+      quizQuestion: `In Row-Major 2D Matrix storage with 3 columns, what is the 1D linear RAM memory offset for cell (row=1, col=2)?`,
       quizOptions: [
-        { id: 'A', text: 'O(N^2) time due to nested brute force iterations.' },
-        { id: 'B', text: 'O(N) or O(log N) optimal linear/logarithmic execution.', correct: true },
-        { id: 'C', text: 'O(2^N) exponential call stack overhead.' }
+        { id: 'A', text: 'Offset 3 (1 + 2)' },
+        { id: 'B', text: 'Offset 5 (row * COLS + col = 1 * 3 + 2 = 5)', correct: true },
+        { id: 'C', text: 'Offset 9 (3 * 3)' }
       ]
     };
   }
 
-  // 2. DATABASE CONCEPTS
-  if (dUpper.includes('DATABASE') || dUpper.includes('DB')) {
+  // 2. LINKED LIST VISUALIZER DATA
+  if (visualType === 'LINKED_LIST') {
     return {
+      visualType: 'LINKED_LIST',
       title: foundTopic,
       phase: phaseTitle,
-      subtitle: `Optimize queries, B-Tree leaf node traversals, and execution plans for ${foundTopic}.`,
-      whyMatters: `Database indexing and SQL execution tuning transforms slow table scans into sub-millisecond lookups.`,
-      nodes: [`Index Root`, `Internal Node`, `Leaf Page`, `Row ID`],
-      codeSnippet: `-- ${foundTopic} SQL Query Optimization
+      subtitle: `Master node pointer allocation, prev/next references, and structural traversal without contiguous memory.`,
+      whyMatters: `Linked Lists allow O(1) dynamic node insertions and deletions without reallocation.`,
+      nodesList: [
+        { val: 12, addr: '0x10A', next: '0x20B' },
+        { val: 45, addr: '0x20B', next: '0x30C' },
+        { val: 89, addr: '0x30C', next: 'NULL' }
+      ],
+      codeSnippet: `# Singly Linked List Node Traversal
+class Node:
+    def __init__(self, val, next_node=None):
+        self.val = val
+        self.next = next_node
+
+head = Node(12, Node(45, Node(89)))
+
+curr = head
+while curr:
+    print(f"Visiting Node val={curr.val}")
+    curr = curr.next`,
+      quizQuestion: `Why does finding an element by index in a Singly Linked List take O(N) time?`,
+      quizOptions: [
+        { id: 'A', text: 'Node memory is non-contiguous, requiring sequential pointer traversal from Head.', correct: true },
+        { id: 'B', text: 'The CPU cache automatically locks linked list nodes.' },
+        { id: 'C', text: 'LinkedList nodes can only store strings.' }
+      ]
+    };
+  }
+
+  // 3. TREE / GRAPH VISUALIZER DATA
+  if (visualType === 'TREE_GRAPH') {
+    return {
+      visualType: 'TREE_GRAPH',
+      title: foundTopic,
+      phase: phaseTitle,
+      subtitle: `Understand hierarchical parent-child relationships and Depth-First / Breadth-First exploration.`,
+      whyMatters: `Trees and Graphs model file systems, DOM trees, network topology, and decision trees.`,
+      treeNodes: [
+        { id: 'Root', val: 'Root (10)', level: 0 },
+        { id: 'L1', val: 'Left (5)', level: 1 },
+        { id: 'R1', val: 'Right (15)', level: 1 },
+        { id: 'L2', val: 'L-Leaf (2)', level: 2 },
+        { id: 'R2', val: 'R-Leaf (20)', level: 2 }
+      ],
+      codeSnippet: `# Binary Tree In-Order Traversal (DFS)
+def in_order_traversal(root):
+    if not root:
+        return
+    in_order_traversal(root.left)   # Visit Left Subtree
+    print(root.val)                 # Process Current Node
+    in_order_traversal(root.right)  # Visit Right Subtree`,
+      quizQuestion: `In a Binary Search Tree (BST), what is true about all nodes in the left subtree of a node X?`,
+      quizOptions: [
+        { id: 'A', text: 'All left subtree node values are strictly less than X.val.', correct: true },
+        { id: 'B', text: 'All left subtree node values are strictly greater than X.val.' },
+        { id: 'C', text: 'Left subtree nodes are always stored in array format.' }
+      ]
+    };
+  }
+
+  // 4. DATABASE B-TREE INDEX DATA
+  if (visualType === 'B_TREE_INDEX') {
+    return {
+      visualType: 'B_TREE_INDEX',
+      title: foundTopic,
+      phase: phaseTitle,
+      subtitle: `Traverse B-Tree index pages from Root -> Internal Node -> Leaf Page -> Table Row ID.`,
+      whyMatters: `B-Tree indexes reduce 10,000,000 row table scans down to 3-4 disk page reads in O(log N) steps.`,
+      dbPages: [
+        { name: 'Root Index Page', type: 'Root' },
+        { name: 'Branch Page (50-100)', type: 'Internal' },
+        { name: 'Leaf Page (70-75)', type: 'Leaf' },
+        { name: 'Row Record #742', type: 'Table Data' }
+      ],
+      codeSnippet: `-- B-Tree Index Query Optimization
 EXPLAIN ANALYZE
-SELECT id, user_id, status, created_at 
-FROM production_logs 
-WHERE status = 'ACTIVE' AND created_at >= NOW() - INTERVAL '7 days'
-ORDER BY created_at DESC 
-LIMIT 50;`,
-      quizQuestion: `How does ${foundTopic} impact query performance on a large database table?`,
+SELECT id, email, created_at 
+FROM users 
+WHERE email = 'student@guidex.io';`,
+      quizQuestion: `Why is B-Tree index lookup time complexity O(log N)?`,
       quizOptions: [
-        { id: 'A', text: 'It forces a Sequential Full Table Scan across all disk pages.' },
-        { id: 'B', text: 'It utilizes B-Tree indexes to jump directly to target row pages in O(log N) steps.', correct: true },
-        { id: 'C', text: 'It temporarily locks the database until restarted.' }
+        { id: 'A', text: 'Every tree node level eliminates a constant fraction of remaining index keys.', correct: true },
+        { id: 'B', text: 'B-Trees sort the entire physical disk drive.' },
+        { id: 'C', text: 'B-Trees read every table row in parallel.' }
       ]
     };
   }
 
-  // 3. SYSTEM DESIGN CONCEPTS
-  if (dUpper.includes('SYSTEM') || dUpper.includes('SYS')) {
+  // 5. SYSTEM DESIGN HASH RING DATA
+  if (visualType === 'HASH_RING') {
     return {
+      visualType: 'HASH_RING',
       title: foundTopic,
       phase: phaseTitle,
-      subtitle: `Design high-throughput, fault-tolerant distributed architectures for ${foundTopic}.`,
-      whyMatters: `Scalable distributed design prevents single points of failure under millions of concurrent requests.`,
-      nodes: [`Client App`, `Load Balancer`, `API Cluster`, `Cache Layer`],
-      codeSnippet: `# ${foundTopic} Distributed Architecture
-def route_incoming_request(request_payload):
-    # Step 1: Generate hash key for request
-    hash_key = hash(request_payload.user_id) % 360
-    
-    # Step 2: Route request to healthy cluster node
-    target_node = consistent_hash_ring.get_nearest_node(hash_key)
-    return target_node.execute(request_payload)`,
-      quizQuestion: `What is the key architectural trade-off when implementing ${foundTopic}?`,
+      subtitle: `Distribute incoming request hashes across a 360° Consistent Hashing Ring of server nodes.`,
+      whyMatters: `Consistent hashing minimizes key remapping when scaling out server clusters.`,
+      clusterNodes: [
+        { name: 'Server Alpha (0°)', angle: 0 },
+        { name: 'Server Beta (120°)', angle: 120 },
+        { name: 'Server Gamma (240°)', angle: 240 },
+        { name: 'Request Hash (145°)', angle: 145 }
+      ],
+      codeSnippet: `# Consistent Hashing Ring Routing
+import hashlib
+
+def route_key(user_id, ring_nodes):
+    hash_val = int(hashlib.md5(user_id.encode()).hexdigest(), 16) % 360
+    for angle, node in sorted(ring_nodes):
+        if hash_val <= angle:
+            return node
+    return ring_nodes[0][1]`,
+      quizQuestion: `What happens when a new server node is added to a Consistent Hashing ring?`,
       quizOptions: [
-        { id: 'A', text: 'Increasing network latency to guarantee absolute synchronous consistency (CAP Theorem).' },
-        { id: 'B', text: 'Balancing Availability vs Consistency under network partitions.', correct: true },
-        { id: 'C', text: 'Eliminating all server instances in favor of client-only processing.' }
+        { id: 'A', text: 'Only a fraction (1/N) of keys are remapped, preserving cache hit ratios.', correct: true },
+        { id: 'B', text: '100% of all keys in the database must be re-hashed.' },
+        { id: 'C', text: 'The load balancer drops all active connections.' }
       ]
     };
   }
 
-  // 4. AUTHENTICATION CONCEPTS
-  return {
-    title: foundTopic,
-    phase: phaseTitle,
-    subtitle: `Implement stateless security, cryptographically signed tokens, and protection for ${foundTopic}.`,
-    whyMatters: `Robust identity & access control shields your web APIs against XSS, CSRF, and token theft.`,
-    nodes: [`Header`, `Payload`, `Signature`, 'HttpOnly Cookie'],
-    codeSnippet: `// ${foundTopic} Security Middleware
-function verifyAuthToken(req, res, next) {
-  const token = req.headers['authorization']?.split(' ')[1];
-  if (!token) return res.status(401).json({ message: 'Unauthorized access token' });
+  // 6. AUTHENTICATION JWT DATA
+  if (visualType === 'JWT_TOKEN') {
+    return {
+      visualType: 'JWT_TOKEN',
+      title: foundTopic,
+      phase: phaseTitle,
+      subtitle: `Inspect Base64Url Header, Payload Claims, and HMAC-SHA256 Cryptographic Signature.`,
+      whyMatters: `JWT tokens enable stateless authentication while preventing tampering via HMAC verification.`,
+      jwtParts: [
+        { part: 'Header', val: '{"alg": "HS256", "typ": "JWT"}' },
+        { part: 'Payload', val: '{"sub": "usr_948", "role": "admin"}' },
+        { part: 'Signature', val: 'HMACSHA256(header + payload, secret)' },
+        { part: 'Cookie', val: 'HttpOnly; Secure; SameSite=Strict' }
+      ],
+      codeSnippet: `// Express JWT Token Verification
+const jwt = require('jsonwebtoken');
 
-  jwt.verify(token, process.env.JWT_SECRET, (err, decodedUser) => {
-    if (err) return res.status(403).json({ message: 'Invalid or expired token' });
-    req.user = decodedUser;
+function verifyJWT(req, res, next) {
+  const token = req.headers.authorization?.split(' ')[1];
+  if (!token) return res.sendStatus(401);
+
+  jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
+    if (err) return res.sendStatus(403);
+    req.user = decoded;
     next();
   });
 }`,
-    quizQuestion: `What is the primary security benefit of ${foundTopic}?`,
+      quizQuestion: `Why should sensitive refresh tokens be stored in HttpOnly Cookies instead of LocalStorage?`,
+      quizOptions: [
+        { id: 'A', text: 'HttpOnly cookies cannot be accessed or stolen by malicious client-side JavaScript (XSS).', correct: true },
+        { id: 'B', text: 'LocalStorage can only store up to 5 bytes of data.' },
+        { id: 'C', text: 'HttpOnly cookies bypass server validation.' }
+      ]
+    };
+  }
+
+  // DEFAULT 1D SLIDING WINDOW / ARRAY DATA
+  return {
+    visualType: 'SLIDING_WINDOW',
+    title: foundTopic,
+    phase: phaseTitle,
+    subtitle: `Maintain left & right pointers across a 1D array to solve subarray problems in linear O(N) time.`,
+    whyMatters: `Sliding Window avoids nested O(N^2) loops by adding incoming and subtracting outgoing elements.`,
+    arrayData: [2, 1, 5, 1, 3, 2],
+    codeSnippet: `# Sliding Window Max Subarray Sum of Size K
+def max_sub_array_of_size_k(k, arr):
+    max_sum, window_sum, window_start = 0, 0, 0
+    for window_end in range(len(arr)):
+        window_sum += arr[window_end]
+        if window_end >= k - 1:
+            max_sum = max(max_sum, window_sum)
+            window_sum -= arr[window_start]
+            window_start += 1
+    return max_sum`,
+    quizQuestion: `Why does Sliding Window achieve O(N) linear time complexity?`,
     quizOptions: [
-      { id: 'A', text: 'It prevents credential theft and enforces cryptographic signature verification.', correct: true },
-      { id: 'B', text: 'It removes the need for password hashing algorithms.' },
-      { id: 'C', text: 'It forces all client requests to run synchronously on a single thread.' }
+      { id: 'A', text: 'Each element is visited at most twice by left and right pointers.', correct: true },
+      { id: 'B', text: 'It creates nested loops that run in parallel.' },
+      { id: 'C', text: 'It sorts the input array automatically.' }
     ]
   };
 }
@@ -148,7 +282,7 @@ const DailyConcept = () => {
 
   // Selected Domain locked to user's active goal
   const selectedDomain = user?.goal || location.state?.domain || USER_PROFILE.targetRole || 'DATA STRUCTURES';
-  const [currentDayNum, setCurrentDayNum] = useState(location.state?.day || 3);
+  const [currentDayNum, setCurrentDayNum] = useState(location.state?.day || 4);
 
   // Dynamic Concept Data for active Domain and Day!
   const concept = getConceptForDayAndDomain(selectedDomain, currentDayNum);
@@ -158,6 +292,7 @@ const DailyConcept = () => {
 
   // Interactive Simulation State
   const [simIndex, setSimIndex] = useState(0);
+  const [matrixCell, setMatrixCell] = useState({ r: 0, c: 0 });
   const [isSimulating, setIsSimulating] = useState(false);
   const [simulationLog, setSimulationLog] = useState([`Loaded Day ${currentDayNum} concept: ${concept.title}`]);
 
@@ -173,6 +308,7 @@ const DailyConcept = () => {
     setQuizSubmitted(false);
     setSimulationLog([`Loaded Day ${currentDayNum} concept: ${concept.title}`]);
     setSimIndex(0);
+    setMatrixCell({ r: 0, c: 0 });
   }, [selectedDomain, currentDayNum]);
 
   const markComplete = (stepNum) => {
@@ -184,27 +320,61 @@ const DailyConcept = () => {
     setActiveStep(num);
   };
 
+  // Run Custom Simulation Based on Visualizer Type
   const runConceptSimulation = () => {
     if (isSimulating) return;
     setIsSimulating(true);
     setSimulationLog([`Starting interactive simulation for Day ${currentDayNum}: ${concept.title}...`]);
-    setSimIndex(0);
 
+    if (concept.visualType === 'MATRIX_2D') {
+      let r = 0, c = 0;
+      setMatrixCell({ r: 0, c: 0 });
+
+      const interval = setInterval(() => {
+        c += 1;
+        if (c >= 3) {
+          c = 0;
+          r += 1;
+        }
+
+        if (r >= 3) {
+          clearInterval(interval);
+          setIsSimulating(false);
+          markComplete(2);
+          setSimulationLog(l => [...l, `✓ 2D Grid Traversal Complete: Visited all 9 matrix cells in row-major order!`]);
+          return;
+        }
+
+        setMatrixCell({ r, c });
+        const offset = r * 3 + c;
+        const val = concept.gridData[r][c];
+        setSimulationLog(l => [
+          ...l,
+          `Traversing Cell (${r}, ${c}) -> Value: ${val} | 1D RAM Offset = ${r} * 3 + ${c} = ${offset}`
+        ]);
+      }, 750);
+      return;
+    }
+
+    // Default Step Simulation
     let idx = 0;
+    setSimIndex(0);
+    const maxSteps = concept.gridData ? 9 : (concept.nodesList ? concept.nodesList.length : (concept.treeNodes ? concept.treeNodes.length : (concept.dbPages ? concept.dbPages.length : (concept.jwtParts ? concept.jwtParts.length : 6))));
+
     const interval = setInterval(() => {
       idx += 1;
-      if (idx >= concept.nodes.length) {
+      if (idx >= maxSteps) {
         clearInterval(interval);
         setIsSimulating(false);
         markComplete(2);
-        setSimulationLog(l => [...l, `✓ Simulation Complete: Processed all nodes for ${concept.title}!`]);
+        setSimulationLog(l => [...l, `✓ Simulation Complete: Processed all steps for ${concept.title}!`]);
         return;
       }
 
       setSimIndex(idx);
       setSimulationLog(l => [
         ...l,
-        `Step ${idx + 1}: Executed node "${concept.nodes[idx]}" -> Invariant Confirmed.`
+        `Step ${idx + 1}: Processed node element -> Invariant Confirmed.`
       ]);
     }, 850);
   };
@@ -345,7 +515,7 @@ const DailyConcept = () => {
         </div>
       )}
 
-      {/* ── STEP 2: SEE IT — Interactive Node Visualizer ── */}
+      {/* ── STEP 2: SEE IT — Custom Visualizer Modes ── */}
       {activeStep === 2 && (
         <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl p-6 md:p-8 space-y-6 shadow-sm">
           <div className="space-y-1">
@@ -355,34 +525,169 @@ const DailyConcept = () => {
             </h2>
           </div>
 
-          {/* Interactive Cards Grid */}
+          {/* Interactive Visual Container */}
           <div className="p-6 rounded-2xl bg-zinc-900 text-white space-y-6">
             <div className="flex items-center justify-between text-xs font-mono text-zinc-400 border-b border-zinc-800 pb-3">
-              <span>Day Topic: <strong className="text-[#F5C542]">{concept.title}</strong></span>
-              <span>Node Execution: <strong className="text-emerald-400">Step {simIndex + 1} / {concept.nodes.length}</strong></span>
+              <span className="flex items-center gap-1.5">
+                <Grid size={14} className="text-[#F5C542]" />
+                Mode: <strong className="text-[#F5C542]">{concept.visualType}</strong>
+              </span>
+              <span>
+                {concept.visualType === 'MATRIX_2D'
+                  ? `Active Cell: (${matrixCell.r}, ${matrixCell.c}) | RAM Offset = ${matrixCell.r * 3 + matrixCell.c}`
+                  : `Step ${simIndex + 1}`}
+              </span>
             </div>
 
-            {/* Visual Node Box Cards */}
-            <div className="flex items-center justify-center gap-2 sm:gap-3 flex-wrap">
-              {concept.nodes.map((nodeLabel, idx) => {
-                const isActive = idx === simIndex;
-                return (
-                  <div key={idx} className="flex flex-col items-center gap-2">
-                    <span className="text-[10px] font-mono text-zinc-500">Step {idx + 1}</span>
+            {/* MODE 1: 2D MATRIX VISUALIZER */}
+            {concept.visualType === 'MATRIX_2D' && (
+              <div className="space-y-4">
+                <div className="text-center text-xs font-mono text-zinc-400">
+                  3x3 2D Matrix Storage (Row-Major Order)
+                </div>
+                <div className="grid grid-cols-3 gap-3 max-w-xs mx-auto">
+                  {concept.gridData.map((row, rIdx) =>
+                    row.map((val, cIdx) => {
+                      const isActive = matrixCell.r === rIdx && matrixCell.c === cIdx;
+                      return (
+                        <div
+                          key={`${rIdx}-${cIdx}`}
+                          className={`p-4 rounded-2xl border-2 font-mono flex flex-col items-center justify-center transition-all duration-300 ${
+                            isActive
+                              ? 'bg-[#F5C542] text-zinc-950 border-[#F5C542] shadow-lg shadow-amber-500/20 scale-105 font-black'
+                              : 'bg-zinc-800 text-zinc-300 border-zinc-700'
+                          }`}
+                        >
+                          <span className="text-xs font-bold">({rIdx},{cIdx})</span>
+                          <span className="text-base font-extrabold mt-0.5">{val}</span>
+                          {isActive && <span className="text-[8px] font-bold uppercase mt-1 text-zinc-950">ACTIVE</span>}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* MODE 2: LINKED LIST VISUALIZER */}
+            {concept.visualType === 'LINKED_LIST' && (
+              <div className="flex items-center justify-center gap-3 overflow-x-auto py-4">
+                {concept.nodesList.map((nd, idx) => {
+                  const isActive = idx === simIndex % concept.nodesList.length;
+                  return (
+                    <div key={idx} className="flex items-center gap-3 shrink-0">
+                      <div className={`p-4 rounded-2xl border-2 font-mono text-xs transition-all ${
+                        isActive ? 'bg-[#F5C542] text-zinc-950 border-[#F5C542] font-bold scale-105' : 'bg-zinc-800 text-zinc-300 border-zinc-700'
+                      }`}>
+                        <div>Addr: {nd.addr}</div>
+                        <div className="text-sm font-extrabold my-1">Val: {nd.val}</div>
+                        <div className="text-[10px] text-zinc-400">Next: {nd.next}</div>
+                      </div>
+                      {idx < concept.nodesList.length - 1 && <span className="text-amber-400 font-mono font-bold">→</span>}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* MODE 3: TREE GRAPH VISUALIZER */}
+            {concept.visualType === 'TREE_GRAPH' && (
+              <div className="flex flex-col items-center gap-3 py-2 font-mono text-xs">
+                {concept.treeNodes.map((tn, idx) => {
+                  const isActive = idx === simIndex % concept.treeNodes.length;
+                  return (
                     <div
-                      className={`px-4 py-3 sm:px-5 sm:py-4 rounded-2xl flex flex-col items-center justify-center font-mono font-extrabold text-xs sm:text-sm border-2 transition-all duration-300 ${
-                        isActive
-                          ? 'bg-[#F5C542] text-zinc-950 border-[#F5C542] shadow-lg shadow-amber-500/20 scale-105'
-                          : 'bg-zinc-800 text-zinc-400 border-zinc-700'
+                      key={tn.id}
+                      className={`px-5 py-2.5 rounded-2xl border-2 transition-all ${
+                        isActive ? 'bg-[#F5C542] text-zinc-950 border-[#F5C542] font-bold scale-105' : 'bg-zinc-800 text-zinc-300 border-zinc-700'
                       }`}
                     >
-                      <span>{nodeLabel}</span>
-                      {isActive && <span className="text-[8px] font-bold uppercase tracking-tighter text-zinc-950 mt-1">● EXECUTING</span>}
+                      {tn.val} {isActive && '● VISITING'}
                     </div>
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* MODE 4: B-TREE INDEX VISUALIZER */}
+            {concept.visualType === 'B_TREE_INDEX' && (
+              <div className="space-y-2 py-2 font-mono text-xs">
+                {concept.dbPages.map((pg, idx) => {
+                  const isActive = idx === simIndex % concept.dbPages.length;
+                  return (
+                    <div
+                      key={idx}
+                      className={`p-3 rounded-2xl border-2 flex items-center justify-between transition-all ${
+                        isActive ? 'bg-[#F5C542] text-zinc-950 border-[#F5C542] font-bold scale-102' : 'bg-zinc-800 text-zinc-300 border-zinc-700'
+                      }`}
+                    >
+                      <span>[{pg.type}] {pg.name}</span>
+                      {isActive && <span className="text-[10px] font-extrabold uppercase">● INDEX MATCH</span>}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* MODE 5: SYSTEM DESIGN HASH RING VISUALIZER */}
+            {concept.visualType === 'HASH_RING' && (
+              <div className="grid grid-cols-2 gap-3 py-2 font-mono text-xs">
+                {concept.clusterNodes.map((cn, idx) => {
+                  const isActive = idx === simIndex % concept.clusterNodes.length;
+                  return (
+                    <div
+                      key={idx}
+                      className={`p-3.5 rounded-2xl border-2 transition-all ${
+                        isActive ? 'bg-[#F5C542] text-zinc-950 border-[#F5C542] font-bold' : 'bg-zinc-800 text-zinc-300 border-zinc-700'
+                      }`}
+                    >
+                      <div>{cn.name}</div>
+                      <div className="text-[10px] text-zinc-400 mt-1">Ring Angle: {cn.angle}°</div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* MODE 6: JWT TOKEN VISUALIZER */}
+            {concept.visualType === 'JWT_TOKEN' && (
+              <div className="space-y-2 py-2 font-mono text-xs">
+                {concept.jwtParts.map((jp, idx) => {
+                  const isActive = idx === simIndex % concept.jwtParts.length;
+                  return (
+                    <div
+                      key={idx}
+                      className={`p-3 rounded-2xl border-2 transition-all ${
+                        isActive ? 'bg-[#F5C542] text-zinc-950 border-[#F5C542] font-bold' : 'bg-zinc-800 text-zinc-300 border-zinc-700'
+                      }`}
+                    >
+                      <div className="font-extrabold uppercase">{jp.part}</div>
+                      <div className="text-[11px] text-zinc-400 mt-0.5 truncate">{jp.val}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* MODE 7: DEFAULT 1D SLIDING WINDOW ARRAY */}
+            {concept.visualType === 'SLIDING_WINDOW' && (
+              <div className="flex items-center justify-center gap-2 sm:gap-3 flex-wrap py-2 font-mono">
+                {concept.arrayData.map((val, idx) => {
+                  const isActive = idx === simIndex % concept.arrayData.length;
+                  return (
+                    <div
+                      key={idx}
+                      className={`w-12 h-14 rounded-2xl flex flex-col items-center justify-center border-2 transition-all ${
+                        isActive ? 'bg-[#F5C542] text-zinc-950 border-[#F5C542] font-extrabold scale-105' : 'bg-zinc-800 text-zinc-300 border-zinc-700'
+                      }`}
+                    >
+                      <span>{val}</span>
+                      {isActive && <span className="text-[8px] font-bold">L/R</span>}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
 
             {/* Simulation Trace Log */}
             <div className="space-y-1.5 text-[11px] font-mono bg-zinc-950 p-3 rounded-xl max-h-32 overflow-y-auto border border-zinc-800">
