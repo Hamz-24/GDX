@@ -6,7 +6,7 @@ import { useAuth } from '../context/AuthContext';
 
 /**
  * Dynamic Concept Generator for ANY Day and ANY Domain
- * Tailors specific visualizer modes:
+ * Returns custom visualizer types with guaranteed safe array defaults:
  * - PREFIX_SUM (Day 5 Prefix Sums & Range Queries)
  * - BINARY_SEARCH (Day 6 Binary Search)
  * - TWO_POINTERS (Day 2 Two Pointers)
@@ -413,6 +413,13 @@ def execute_day_${dayNum}(arr):
   };
 }
 
+const STEPS = [
+  { num: 1, key: 'understand', label: '01 UNDERSTAND' },
+  { num: 2, key: 'see',        label: '02 SEE IT' },
+  { num: 3, key: 'try',        label: '03 TRY IT' },
+  { num: 4, key: 'prove',      label: '04 PROVE IT' },
+];
+
 const DailyConcept = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -467,7 +474,7 @@ const DailyConcept = () => {
     setSimulationLog([`Starting interactive simulation for Day ${currentDayNum}: ${concept.title}...`]);
 
     // MODE: PREFIX SUM SIMULATION
-    if (concept.visualType === 'PREFIX_SUM') {
+    if (concept.visualType === 'PREFIX_SUM' && concept.prefixArray) {
       let idx = 0;
       setSimIndex(0);
       const interval = setInterval(() => {
@@ -494,7 +501,7 @@ const DailyConcept = () => {
     }
 
     // MODE: BINARY SEARCH SIMULATION
-    if (concept.visualType === 'BINARY_SEARCH') {
+    if (concept.visualType === 'BINARY_SEARCH' && concept.sortedArray) {
       let low = 0, high = concept.sortedArray.length - 1;
       let step = 0;
 
@@ -525,7 +532,7 @@ const DailyConcept = () => {
     }
 
     // MODE: 2D MATRIX SIMULATION
-    if (concept.visualType === 'MATRIX_2D') {
+    if (concept.visualType === 'MATRIX_2D' && concept.gridData) {
       let r = 0, c = 0;
       setMatrixCell({ r: 0, c: 0 });
 
@@ -754,7 +761,7 @@ const DailyConcept = () => {
                   Mode: <strong className="text-[#F5C542]">{concept.visualType}</strong>
                 </span>
                 <span>
-                  {concept.visualType === 'PREFIX_SUM' && `Step ${simIndex + 1} / ${concept.prefixArray.length}`}
+                  {concept.visualType === 'PREFIX_SUM' && `Step ${simIndex + 1} / ${(concept.prefixArray || []).length}`}
                   {concept.visualType === 'BINARY_SEARCH' && `Low: ${binarySearchPointers.low} | Mid: ${binarySearchPointers.mid} | High: ${binarySearchPointers.high}`}
                   {concept.visualType === 'MATRIX_2D' && `Active Cell: (${matrixCell.r}, ${matrixCell.c}) | RAM Offset = ${matrixCell.r * 3 + matrixCell.c}`}
                   {concept.visualType !== 'PREFIX_SUM' && concept.visualType !== 'BINARY_SEARCH' && concept.visualType !== 'MATRIX_2D' && `Step ${simIndex + 1}`}
@@ -767,7 +774,7 @@ const DailyConcept = () => {
                   <div>
                     <span className="text-zinc-400 block mb-2">Original Array A:</span>
                     <div className="flex items-center justify-center gap-2">
-                      {concept.origArray.map((val, idx) => (
+                      {(concept.origArray || []).map((val, idx) => (
                         <div key={idx} className="w-11 h-12 rounded-xl bg-zinc-800 border border-zinc-700 flex flex-col items-center justify-center">
                           <span className="text-[9px] text-zinc-500">[{idx}]</span>
                           <span className="font-bold text-white">{val}</span>
@@ -779,7 +786,7 @@ const DailyConcept = () => {
                   <div>
                     <span className="text-amber-400 block mb-2">Precomputed Prefix Sum Array P (P[i] = Sum arr[0...i-1]):</span>
                     <div className="flex items-center justify-center gap-2">
-                      {concept.prefixArray.map((pVal, idx) => {
+                      {(concept.prefixArray || []).map((pVal, idx) => {
                         const isActive = idx === simIndex;
                         return (
                           <div
@@ -805,7 +812,7 @@ const DailyConcept = () => {
                     Sorted Array (Target: <strong className="text-[#F5C542]">{concept.target}</strong>)
                   </div>
                   <div className="flex items-center justify-center gap-1.5 sm:gap-2 flex-wrap">
-                    {concept.sortedArray.map((val, idx) => {
+                    {(concept.sortedArray || []).map((val, idx) => {
                       const isMid = idx === binarySearchPointers.mid;
                       const isLow = idx === binarySearchPointers.low;
                       const isHigh = idx === binarySearchPointers.high;
@@ -838,10 +845,10 @@ const DailyConcept = () => {
               {/* MODE 3: TWO POINTERS VISUALIZER (DAY 2) */}
               {concept.visualType === 'TWO_POINTERS' && (
                 <div className="flex items-center justify-center gap-2 sm:gap-3 flex-wrap py-2 font-mono">
-                  {concept.arrayData.map((val, idx) => {
+                  {(concept.arrayData || []).map((val, idx) => {
                     const isLeft = idx === simIndex;
-                    const isRight = idx === concept.arrayData.length - 1 - simIndex;
-                    const inRange = idx >= simIndex && idx <= concept.arrayData.length - 1 - simIndex;
+                    const isRight = idx === (concept.arrayData || []).length - 1 - simIndex;
+                    const inRange = idx >= simIndex && idx <= (concept.arrayData || []).length - 1 - simIndex;
 
                     return (
                       <div key={idx} className="flex flex-col items-center gap-1">
@@ -872,7 +879,7 @@ const DailyConcept = () => {
                     3x3 2D Matrix Storage (Row-Major Order)
                   </div>
                   <div className="grid grid-cols-3 gap-3 max-w-xs mx-auto">
-                    {concept.gridData.map((row, rIdx) =>
+                    {(concept.gridData || []).map((row, rIdx) =>
                       row.map((val, cIdx) => {
                         const isActive = matrixCell.r === rIdx && matrixCell.c === cIdx;
                         return (
@@ -898,8 +905,8 @@ const DailyConcept = () => {
               {/* MODE 5: SLIDING WINDOW VISUALIZER (DAY 3) */}
               {concept.visualType === 'SLIDING_WINDOW' && (
                 <div className="flex items-center justify-center gap-2 sm:gap-3 flex-wrap py-2 font-mono">
-                  {concept.arrayData.map((val, idx) => {
-                    const isActive = idx === simIndex % concept.arrayData.length;
+                  {(concept.arrayData || []).map((val, idx) => {
+                    const isActive = idx === simIndex % (concept.arrayData || []).length;
                     return (
                       <div
                         key={idx}
@@ -915,9 +922,109 @@ const DailyConcept = () => {
                 </div>
               )}
 
+              {/* MODE 6: LINKED LIST VISUALIZER */}
+              {concept.visualType === 'LINKED_LIST' && (
+                <div className="flex items-center justify-center gap-3 overflow-x-auto py-4">
+                  {(concept.nodesList || []).map((nd, idx) => {
+                    const isActive = idx === simIndex % (concept.nodesList || []).length;
+                    return (
+                      <div key={idx} className="flex items-center gap-3 shrink-0">
+                        <div className={`p-4 rounded-2xl border-2 font-mono text-xs transition-all ${
+                          isActive ? 'bg-[#F5C542] text-zinc-950 border-[#F5C542] font-bold scale-105' : 'bg-zinc-800 text-zinc-300 border-zinc-700'
+                        }`}>
+                          <div>Addr: {nd.addr}</div>
+                          <div className="text-sm font-extrabold my-1">Val: {nd.val}</div>
+                          <div className="text-[10px] text-zinc-400">Next: {nd.next}</div>
+                        </div>
+                        {idx < (concept.nodesList || []).length - 1 && <span className="text-amber-400 font-mono font-bold">→</span>}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* MODE 7: TREE GRAPH VISUALIZER */}
+              {concept.visualType === 'TREE_GRAPH' && (
+                <div className="flex flex-col items-center gap-3 py-2 font-mono text-xs">
+                  {(concept.treeNodes || []).map((tn, idx) => {
+                    const isActive = idx === simIndex % (concept.treeNodes || []).length;
+                    return (
+                      <div
+                        key={tn.id}
+                        className={`px-5 py-2.5 rounded-2xl border-2 transition-all ${
+                          isActive ? 'bg-[#F5C542] text-zinc-950 border-[#F5C542] font-bold scale-105' : 'bg-zinc-800 text-zinc-300 border-zinc-700'
+                        }`}
+                      >
+                        {tn.val} {isActive && '● VISITING'}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* MODE 8: B-TREE INDEX VISUALIZER */}
+              {concept.visualType === 'B_TREE_INDEX' && (
+                <div className="space-y-2 py-2 font-mono text-xs">
+                  {(concept.dbPages || []).map((pg, idx) => {
+                    const isActive = idx === simIndex % (concept.dbPages || []).length;
+                    return (
+                      <div
+                        key={idx}
+                        className={`p-3 rounded-2xl border-2 flex items-center justify-between transition-all ${
+                          isActive ? 'bg-[#F5C542] text-zinc-950 border-[#F5C542] font-bold scale-102' : 'bg-zinc-800 text-zinc-300 border-zinc-700'
+                        }`}
+                      >
+                        <span>[{pg.type}] {pg.name}</span>
+                        {isActive && <span className="text-[10px] font-extrabold uppercase">● INDEX MATCH</span>}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* MODE 9: SYSTEM DESIGN HASH RING VISUALIZER */}
+              {concept.visualType === 'HASH_RING' && (
+                <div className="grid grid-cols-2 gap-3 py-2 font-mono text-xs">
+                  {(concept.clusterNodes || []).map((cn, idx) => {
+                    const isActive = idx === simIndex % (concept.clusterNodes || []).length;
+                    return (
+                      <div
+                        key={idx}
+                        className={`p-3.5 rounded-2xl border-2 transition-all ${
+                          isActive ? 'bg-[#F5C542] text-zinc-950 border-[#F5C542] font-bold' : 'bg-zinc-800 text-zinc-300 border-zinc-700'
+                        }`}
+                      >
+                        <div>{cn.name}</div>
+                        <div className="text-[10px] text-zinc-400 mt-1">Ring Angle: {cn.angle}°</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* MODE 10: JWT TOKEN VISUALIZER */}
+              {concept.visualType === 'JWT_TOKEN' && (
+                <div className="space-y-2 py-2 font-mono text-xs">
+                  {(concept.jwtParts || []).map((jp, idx) => {
+                    const isActive = idx === simIndex % (concept.jwtParts || []).length;
+                    return (
+                      <div
+                        key={idx}
+                        className={`p-3 rounded-2xl border-2 transition-all ${
+                          isActive ? 'bg-[#F5C542] text-zinc-950 border-[#F5C542] font-bold' : 'bg-zinc-800 text-zinc-300 border-zinc-700'
+                        }`}
+                      >
+                        <div className="font-extrabold uppercase">{jp.part}</div>
+                        <div className="text-[11px] text-zinc-400 mt-0.5 truncate">{jp.val}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
               {/* Simulation Trace Log */}
               <div className="space-y-1.5 text-[11px] font-mono bg-zinc-950 p-3 rounded-xl max-h-32 overflow-y-auto border border-zinc-800">
-                {simulationLog.map((log, i) => (
+                {(simulationLog || []).map((log, i) => (
                   <div key={i} className="text-zinc-300">
                     <span className="text-amber-500 mr-1.5">❯</span>
                     {log}
@@ -958,7 +1065,7 @@ const DailyConcept = () => {
 
           <div className="rounded-2xl overflow-hidden border border-zinc-800 shadow-sm">
             <div className="px-4 py-2.5 bg-zinc-950 text-[11px] font-mono text-amber-400 font-bold border-b border-zinc-800 flex justify-between">
-              <span>day_{currentDayNum}_{concept.title.toLowerCase().replace(/[^a-z0-9]/g, '_')}</span>
+              <span>day_{currentDayNum}_{(concept.title || '').toLowerCase().replace(/[^a-z0-9]/g, '_')}</span>
               <span className="text-zinc-500">Day {currentDayNum} Production Code</span>
             </div>
             <pre className="p-4 bg-zinc-900 text-zinc-100 font-mono text-xs overflow-x-auto leading-relaxed">{concept.codeSnippet}</pre>
@@ -990,7 +1097,7 @@ const DailyConcept = () => {
           </h4>
 
           <div className="space-y-3">
-            {concept.quizOptions.map(opt => (
+            {(concept.quizOptions || []).map(opt => (
               <button
                 key={opt.id}
                 onClick={() => !quizSubmitted && setSelectedOption(opt.id)}
@@ -1022,8 +1129,8 @@ const DailyConcept = () => {
             </button>
 
             {quizSubmitted && (
-              <span className={`text-xs font-bold font-mono ${concept.quizOptions.find(o => o.id === selectedOption)?.correct ? 'text-emerald-500' : 'text-rose-500'}`}>
-                {concept.quizOptions.find(o => o.id === selectedOption)?.correct ? '✓ Correct! Micro-lesson passed.' : '✗ Incorrect. Review concept intuition.'}
+              <span className={`text-xs font-bold font-mono ${(concept.quizOptions || []).find(o => o.id === selectedOption)?.correct ? 'text-emerald-500' : 'text-rose-500'}`}>
+                {(concept.quizOptions || []).find(o => o.id === selectedOption)?.correct ? '✓ Correct! Micro-lesson passed.' : '✗ Incorrect. Review concept intuition.'}
               </span>
             )}
           </div>
