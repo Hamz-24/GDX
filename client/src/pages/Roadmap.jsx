@@ -32,10 +32,11 @@ const Roadmap = () => {
           const weekMap = {};
           steps.forEach(step => {
             const w = step.week || 1;
+            const weekLabel = `WEEK ${String(w).padStart(2, '0')}`;
             if (!weekMap[w]) {
               weekMap[w] = {
                 id: w,
-                num: `WEEK 0${w}`,
+                num: weekLabel,
                 title: step.phaseName || `WEEK ${w} MASTERY`,
                 status: w === 1 ? 'In Progress' : 'Upcoming',
                 current: w === 1,
@@ -46,19 +47,24 @@ const Roadmap = () => {
               };
             }
 
-            weekMap[w].days.push({
-              day: step.day,
-              title: step.dayName || `Day ${step.day}: ${step.phaseName}`,
-              desc: step.context || (step.tasks && step.tasks[0]?.title) || 'Daily focus topic',
-              status: step.completed ? 'Completed' : (step.day === 3 ? 'In Progress' : 'Upcoming'),
-              current: step.day === 3,
-              duration: '45 min',
-              prompt: `Explain Day ${step.day}: ${step.dayName} for ${selectedGoal}.`
-            });
+            // Prevent duplicate day entries inside the week
+            if (!weekMap[w].days.some(d => d.day === step.day)) {
+              weekMap[w].days.push({
+                day: step.day,
+                title: step.dayName || `Day ${step.day}: ${step.phaseName}`,
+                desc: step.context || (step.tasks && step.tasks[0]?.title) || 'Daily focus topic',
+                status: step.completed ? 'Completed' : (step.day === 3 ? 'In Progress' : 'Upcoming'),
+                current: step.day === 3,
+                duration: '45 min',
+                prompt: `Explain Day ${step.day}: ${step.dayName} for ${selectedGoal}.`
+              });
+            }
           });
 
           const transformed = Object.values(weekMap);
-          if (transformed.length > 0) {
+          // Only override if transformed count matches timeline requested length
+          const expectedWeeks = parseInt(timeline) || 4;
+          if (transformed.length === expectedWeeks) {
             setRoadmapData(transformed);
           }
         }
@@ -252,7 +258,7 @@ const Roadmap = () => {
         <div className="flex items-center gap-2">
           <Sparkles size={15} className="text-amber-500 shrink-0" />
           <span className="text-zinc-800 dark:text-zinc-200 font-medium">
-            <strong className="font-bold">{roadmapData.length}-Week Personal Roadmap Active:</strong> {roadmapData.length * 7} Days generated for {selectedGoal} ({level}).
+            <strong className="font-bold">{roadmapData.length}-Week Personal Roadmap Active:</strong> {roadmapData.length * 7} Unique Days generated for {selectedGoal} ({level}).
           </span>
         </div>
       </div>
