@@ -1,238 +1,449 @@
 import { useState, useRef } from 'react';
-import { X, Filter } from 'lucide-react';
+import { Sparkles, ArrowRight, Layers, ZoomIn, ZoomOut, RotateCcw, X, ShieldCheck, Info, Play, CheckCircle2, ChevronRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { USER_PROFILE } from '../constants/userProfile';
 
-/**
- * Blueprint — "How are my skills connected?"
- * Dashboard = where am I relative to target? (high-level topology)
- * Blueprint = how are skills connected? (prerequisite dependency graph)
- */
+/* ── DIAGRAMMATIC ARCHITECTURE NODES ── */
+const DIAGRAM_NODES = [
+  // LAYER 1: MEMORY & ARRAYS
+  {
+    id: 'n1',
+    layer: 'memory',
+    stepNum: '01',
+    label: 'Contiguous Memory & Arrays',
+    sub: 'RAM Base + (i * size)',
+    status: 'Mastered',
+    mastery: 95,
+    x: 80,
+    y: 120,
+    diagramType: 'Memory Array Grid',
+    asciiDiagram: `[ 0x100: Val 10 ] -> [ 0x104: Val 20 ] -> [ 0x108: Val 30 ]
+   ↑ (Base Addr)       ↑ (Offset +4)      ↑ (Offset +8)`,
+    description: 'Contiguous block of RAM. O(1) random access via arithmetic index computation.',
+    prereqs: ['Memory Addressing Basics'],
+    unlocks: ['Pointer Chains', 'Sliding Window Engine']
+  },
+  {
+    id: 'n2',
+    layer: 'memory',
+    stepNum: '01',
+    label: 'Sliding Window Engine',
+    sub: 'Two-Pointer Bounds',
+    status: 'In Progress',
+    mastery: 50,
+    x: 320,
+    y: 120,
+    diagramType: 'Window Bounds Diagram',
+    asciiDiagram: `Array: [ 2 | 1 | 5 | 1 | 3 | 2 ]
+        [ L ======= R ] -> Sum = 8 (Slide R+1, L+1)`,
+    description: 'Maintains sub-array bounds (L, R) dynamically without nested loop O(N^2) overhead.',
+    prereqs: ['Contiguous Memory & Arrays'],
+    unlocks: ['Call Stack & Node Chains']
+  },
 
-const CLUSTERS = {
-  foundation: { label: 'FOUNDATION',    border: '#38bdf8', bg: '#f0f9ff', darkBg: '#0c4a6e', text: '#0369a1' },
-  backend:    { label: 'BACKEND CORE',  border: '#F5C542', bg: '#fefce8', darkBg: '#451a03', text: '#92400e' },
-  scale:      { label: 'SCALABILITY',   border: '#f97316', bg: '#fff7ed', darkBg: '#431407', text: '#9a3412' },
-  systems:    { label: 'DISTRIBUTED',   border: '#a855f7', bg: '#faf5ff', darkBg: '#3b0764', text: '#7e22ce' },
-};
+  // LAYER 2: POINTERS & STACKS
+  {
+    id: 'n3',
+    layer: 'pointers',
+    stepNum: '02',
+    label: 'Linked Node Chains',
+    sub: 'Non-Contiguous Pointers',
+    status: 'Upcoming',
+    mastery: 20,
+    x: 560,
+    y: 120,
+    diagramType: 'Pointer Node Map',
+    asciiDiagram: `[ Node A | Next* ] ---> [ Node B | Next* ] ---> [ NULL ]
+  0x200                   0x450`,
+    description: 'Nodes scattered in heap memory connected via pointer references.',
+    prereqs: ['Contiguous Memory & Arrays'],
+    unlocks: ['Call Stack & Recursion', 'Tree Branches']
+  },
+  {
+    id: 'n4',
+    layer: 'pointers',
+    stepNum: '02',
+    label: 'Call Stack & Recursion',
+    sub: 'LIFO Memory Frames',
+    status: 'Upcoming',
+    mastery: 15,
+    x: 200,
+    y: 300,
+    diagramType: 'Call Stack Frame',
+    asciiDiagram: `| Frame 3: solve(n-2) |  <-- Stack Top (Push/Pop O(1))
+| Frame 2: solve(n-1) |
+| Frame 1: main()     |  <-- Stack Base`,
+    description: 'Last-In First-Out system call stack frame allocation during function calls.',
+    prereqs: ['Sliding Window Engine'],
+    unlocks: ['Binary Tree Traversal']
+  },
 
-const NODES = [
-  // Foundation
-  { id: 'http',    label: 'HTTP & Networking', cluster: 'foundation', status: 'Mastered',    mastery: 96, x: 90,  y: 80  },
-  { id: 'ds',      label: 'Data Structures',   cluster: 'foundation', status: 'Mastered',    mastery: 88, x: 280, y: 80  },
-  { id: 'sql',     label: 'SQL Basics',         cluster: 'foundation', status: 'Mastered',    mastery: 85, x: 470, y: 80  },
-  // Backend Core
-  { id: 'rest',    label: 'REST APIs',          cluster: 'backend',    status: 'Mastered',    mastery: 98, x: 90,  y: 230 },
-  { id: 'auth',    label: 'Auth & JWT',         cluster: 'backend',    status: 'Learning',    mastery: 70, x: 260, y: 230 },
-  { id: 'index',   label: 'DB Indexing',        cluster: 'backend',    status: 'Learning',    mastery: 55, x: 440, y: 230 },
-  { id: 'orm',     label: 'ORM & Queries',      cluster: 'backend',    status: 'Learning',    mastery: 60, x: 620, y: 230 },
-  // Scalability
-  { id: 'cache',   label: 'Redis & Caching',    cluster: 'scale',      status: 'Not Started', mastery: 10, x: 150, y: 380 },
-  { id: 'queues',  label: 'Message Queues',      cluster: 'scale',      status: 'Not Started', mastery: 5,  x: 370, y: 380 },
-  { id: 'lb',      label: 'Load Balancing',      cluster: 'scale',      status: 'Skill Gap',   mastery: 20, x: 570, y: 380 },
-  // Distributed
-  { id: 'dist',    label: 'Distributed Sys',     cluster: 'systems',    status: 'Skill Gap',   mastery: 25, x: 220, y: 510 },
-  { id: 'cap',     label: 'CAP Theorem',          cluster: 'systems',    status: 'Skill Gap',   mastery: 15, x: 440, y: 510 },
-  { id: 'micro',   label: 'Microservices',        cluster: 'systems',    status: 'Not Started', mastery: 0,  x: 640, y: 510 },
+  // LAYER 3: TREES & GRAPHS
+  {
+    id: 'n5',
+    layer: 'trees',
+    stepNum: '03',
+    label: 'Binary Tree Branching',
+    sub: 'Hierarchical Nodes',
+    status: 'Locked',
+    mastery: 0,
+    x: 440,
+    y: 300,
+    diagramType: 'Tree Branching Map',
+    asciiDiagram: `          ( Root: 10 )
+          /          \\
+    ( Left: 5 )    ( Right: 15 )`,
+    description: 'Hierarchical node structure where each parent node points to Left and Right child pointers.',
+    prereqs: ['Linked Node Chains', 'Call Stack & Recursion'],
+    unlocks: ['Graph Adjacency Grid', 'Priority Heap Tree']
+  },
+  {
+    id: 'n6',
+    layer: 'trees',
+    stepNum: '03',
+    label: 'Graph Adjacency Grid',
+    sub: 'Non-Linear Graph Nodes',
+    status: 'Locked',
+    mastery: 0,
+    x: 680,
+    y: 300,
+    diagramType: 'Graph Edge Matrix',
+    asciiDiagram: `Vertex A ---> [ Vertex B, Vertex C ]
+Vertex B ---> [ Vertex D ]
+(BFS Queue Traversal / DFS Stack Exploration)`,
+    description: 'Graph connections represented via Adjacency Lists with BFS/DFS exploration algorithms.',
+    prereqs: ['Binary Tree Branching'],
+    unlocks: ['Dynamic Programming Table']
+  },
+
+  // LAYER 4: HEAPS & OPTIMIZATION
+  {
+    id: 'n7',
+    layer: 'optimization',
+    stepNum: '04',
+    label: 'Priority Heap Tree',
+    sub: 'Min/Max Complete Tree',
+    status: 'Locked',
+    mastery: 0,
+    x: 320,
+    y: 480,
+    diagramType: 'Heap Array Representation',
+    asciiDiagram: `Array Rep: [ MinVal | Child1 | Child2 | ... ]
+Left Child = 2i + 1  |  Right Child = 2i + 2`,
+    description: 'Complete binary tree stored as an array for O(1) Min/Max access and O(log N) Heapify.',
+    prereqs: ['Binary Tree Branching'],
+    unlocks: ['Dynamic Programming Table']
+  },
+  {
+    id: 'n8',
+    layer: 'optimization',
+    stepNum: '04',
+    label: 'Dynamic Programming Table',
+    sub: 'Subproblem Memoization',
+    status: 'Locked',
+    mastery: 0,
+    x: 580,
+    y: 480,
+    diagramType: 'DP Memoization Matrix',
+    asciiDiagram: `DP Table: [ 0 | 1 | 1 | 2 | 3 | 5 | 8 | 13 ]
+  Lookup: Memo[N] = Memo[N-1] + Memo[N-2]`,
+    description: 'Avoids redundant re-computation by caching overlapping subproblem answers in a lookup table.',
+    prereqs: ['Priority Heap Tree', 'Graph Adjacency Grid'],
+    unlocks: ['Production Mastery & Interview Ready']
+  }
 ];
 
-// Prerequisite edges: from = prerequisite, to = what it unlocks
-const EDGES = [
-  { from: 'http',  to: 'rest'   },
-  { from: 'http',  to: 'auth'   },
-  { from: 'ds',    to: 'index'  },
-  { from: 'sql',   to: 'index'  },
-  { from: 'sql',   to: 'orm'    },
-  { from: 'rest',  to: 'auth'   },
-  { from: 'index', to: 'orm'    },
-  { from: 'rest',  to: 'cache'  },
-  { from: 'orm',   to: 'cache'  },
-  { from: 'rest',  to: 'queues' },
-  { from: 'cache', to: 'lb'     },
-  { from: 'lb',    to: 'dist'   },
-  { from: 'queues',to: 'dist'   },
-  { from: 'dist',  to: 'cap'    },
-  { from: 'dist',  to: 'micro'  },
+/* ── DIAGRAM CONNECTIONS / FLOW ARROWS ── */
+const DIAGRAM_CONNECTIONS = [
+  { from: 'n1', to: 'n2', label: 'Sequential Array' },
+  { from: 'n1', to: 'n3', label: 'Pointers' },
+  { from: 'n2', to: 'n4', label: 'Recursion Frame' },
+  { from: 'n3', to: 'n5', label: 'Node Branching' },
+  { from: 'n4', to: 'n5', label: 'DFS Stack' },
+  { from: 'n5', to: 'n6', label: 'Graph Edges' },
+  { from: 'n5', to: 'n7', label: 'Complete Tree' },
+  { from: 'n6', to: 'n8', label: 'State Table' },
+  { from: 'n7', to: 'n8', label: 'Memo Matrix' },
 ];
 
-const STATUS_COLORS = {
-  Mastered:    { fill: '#dcfce7', stroke: '#22c55e', text: '#166534' },
-  Learning:    { fill: '#fef9c3', stroke: '#F5C542', text: '#78350f' },
-  'Skill Gap': { fill: '#fee2e2', stroke: '#ef4444', text: '#991b1b' },
-  'Not Started':{ fill: '#f4f4f5', stroke: '#a1a1aa', text: '#52525b' },
+const LAYER_COLORS = {
+  memory:       { border: '#F5C542', bg: '#fefce8', darkBg: '#451a03', text: '#78350f', name: 'Memory & Arrays' },
+  pointers:     { border: '#38bdf8', bg: '#f0f9ff', darkBg: '#0c4a6e', text: '#0369a1', name: 'Pointers & Stacks' },
+  trees:        { border: '#a855f7', bg: '#faf5ff', darkBg: '#3b0764', text: '#7e22ce', name: 'Trees & Graphs' },
+  optimization: { border: '#22c55e', bg: '#f0fdf4', darkBg: '#14532d', text: '#15803d', name: 'Optimization & DP' },
 };
-
-const NODE_W = 138, NODE_H = 42;
 
 const Blueprint = () => {
   const navigate = useNavigate();
-  const [selected, setSelected]   = useState(null);
-  const [filter, setFilter]       = useState('all');
-  const [scale, setScale]         = useState(1);
-  const [pan, setPan]             = useState({ x: 0, y: 0 });
+  const [selectedNode, setSelectedNode] = useState(DIAGRAM_NODES[0]);
+  const [activeLayer, setActiveLayer] = useState('all');
+  const [scale, setScale] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
   const dragging = useRef(false);
-  const lastPos  = useRef({ x: 0, y: 0 });
+  const lastPos = useRef({ x: 0, y: 0 });
 
-  const visNodes = filter === 'all' ? NODES : NODES.filter(n => n.cluster === filter);
-  const visIds   = new Set(visNodes.map(n => n.id));
-  const visEdges = EDGES.filter(e => visIds.has(e.from) && visIds.has(e.to));
+  const explainDiagramWithAI = (node) => {
+    navigate('/mentor', {
+      state: {
+        dayTopic: `Diagrammatic Explanation of ${node.label}`,
+        prompt: `Explain the visual architecture diagram of "${node.label}" (${node.diagramType}). Explain the memory/code flow:\n\n\`\`\`\n${node.asciiDiagram}\n\`\`\`\nProvide step-by-step intuition for a Beginner in ${USER_PROFILE.targetRole}.`,
+        goal: USER_PROFILE.targetRole
+      }
+    });
+  };
 
-  const getNode = (id) => NODES.find(n => n.id === id);
+  const startPracticeNode = (node) => {
+    navigate('/focus', {
+      state: {
+        task: { title: `Diagram Practice: ${node.label}`, minutes: 25 }
+      }
+    });
+  };
 
-  const onDown = (e) => { if (e.target.closest('[data-node]')) return; dragging.current = true; lastPos.current = { x: e.clientX, y: e.clientY }; };
-  const onMove = (e) => { if (!dragging.current) return; setPan(p => ({ x: p.x + (e.clientX - lastPos.current.x), y: p.y + (e.clientY - lastPos.current.y) })); lastPos.current = { x: e.clientX, y: e.clientY }; };
-  const onUp   = () => { dragging.current = false; };
-  const onWheel= (e) => { e.preventDefault(); setScale(s => Math.min(2, Math.max(0.4, s * (e.deltaY > 0 ? 0.9 : 1.1)))); };
+  const filteredNodes = activeLayer === 'all'
+    ? DIAGRAM_NODES
+    : DIAGRAM_NODES.filter(n => n.layer === activeLayer);
+
+  const visIds = new Set(filteredNodes.map(n => n.id));
+  const filteredEdges = DIAGRAM_CONNECTIONS.filter(e => visIds.has(e.from) && visIds.has(e.to));
+
+  const getNode = (id) => DIAGRAM_NODES.find(n => n.id === id);
+
+  const onDown = (e) => {
+    if (e.target.closest('[data-node]')) return;
+    dragging.current = true;
+    lastPos.current = { x: e.clientX, y: e.clientY };
+  };
+  const onMove = (e) => {
+    if (!dragging.current) return;
+    setPan(p => ({ x: p.x + (e.clientX - lastPos.current.x), y: p.y + (e.clientY - lastPos.current.y) }));
+    lastPos.current = { x: e.clientX, y: e.clientY };
+  };
+  const onUp = () => { dragging.current = false; };
 
   return (
-    <div className="space-y-6 font-sans pb-16">
+    <div className="max-w-4xl mx-auto space-y-6 font-sans pb-16">
 
       {/* Header */}
-      <div className="space-y-1.5 border-b border-zinc-200 dark:border-zinc-800 pb-6">
-        <span className="text-[10px] font-mono font-bold text-amber-500 uppercase tracking-widest block">
-          SKILL DEPENDENCY GRAPH · {USER_PROFILE.targetRole}
-        </span>
-        <h1 className="text-3xl md:text-4xl font-extrabold font-display text-zinc-900 dark:text-white tracking-tight">
-          How Are My Skills Connected?
-        </h1>
-        <p className="text-xs text-zinc-500 font-medium">
-          Arrows show prerequisite relationships. Click a node to see what it unlocks and requires.
-        </p>
-      </div>
+      <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl p-6 md:p-8 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <span className="px-3 py-1 bg-amber-100 dark:bg-amber-950/60 text-amber-900 dark:text-amber-300 rounded-full text-xs font-mono font-bold">
+              DIAGRAMMATIC BLUEPRINT
+            </span>
+            <span className="px-3 py-1 bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 rounded-full text-xs font-mono font-bold">
+              GOAL: {USER_PROFILE.targetRole.toUpperCase()}
+            </span>
+          </div>
 
-      {/* Controls */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2 flex-wrap text-xs font-mono">
-          <Filter size={13} className="text-zinc-400" />
-          <button onClick={() => setFilter('all')}
-            className={`px-3 py-1.5 rounded-full font-bold transition-all ${filter === 'all' ? 'bg-[#F5C542] text-zinc-950 shadow-pill' : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-white'}`}>
-            All
+          <h1 className="text-3xl md:text-4xl font-extrabold font-display text-zinc-900 dark:text-white tracking-tight">
+            System Architectural Diagram
+          </h1>
+          <p className="text-xs text-zinc-500 font-medium">
+            Interactive visual diagram mapping how memory, pointers, trees, and dynamic programming connect visually.
+          </p>
+        </div>
+
+        {/* Filter Layer Chips */}
+        <div className="flex flex-wrap items-center gap-1.5 font-mono text-xs">
+          <button
+            onClick={() => setActiveLayer('all')}
+            className={`px-3 py-1.5 rounded-full font-bold transition-all ${
+              activeLayer === 'all' ? 'bg-[#F5C542] text-zinc-950 shadow-pill' : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500 hover:text-zinc-900 dark:hover:text-white'
+            }`}
+          >
+            All Layers
           </button>
-          {Object.entries(CLUSTERS).map(([key, c]) => (
-            <button key={key} onClick={() => setFilter(key)}
-              className={`px-3 py-1.5 rounded-full font-bold transition-all ${filter === key ? 'bg-[#F5C542] text-zinc-950 shadow-pill' : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-white'}`}>
-              {c.label}
+          {Object.entries(LAYER_COLORS).map(([key, c]) => (
+            <button
+              key={key}
+              onClick={() => setActiveLayer(key)}
+              className={`px-3 py-1.5 rounded-full font-bold transition-all ${
+                activeLayer === key ? 'bg-[#F5C542] text-zinc-950 shadow-pill' : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500 hover:text-zinc-900 dark:hover:text-white'
+              }`}
+            >
+              {c.name}
             </button>
           ))}
         </div>
-        <div className="flex items-center gap-0.5 bg-zinc-100 dark:bg-zinc-800 rounded-full p-0.5 text-xs font-mono">
-          <button onClick={() => setScale(s => Math.min(2, s + 0.15))} className="w-7 h-7 flex items-center justify-center hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-full font-bold text-zinc-700 dark:text-zinc-200">+</button>
-          <button onClick={() => { setScale(1); setPan({ x: 0, y: 0 }); }} className="px-1.5 h-7 text-[10px] text-zinc-500 hover:text-zinc-900 dark:hover:text-white">reset</button>
-          <button onClick={() => setScale(s => Math.max(0.4, s - 0.15))} className="w-7 h-7 flex items-center justify-center hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-full font-bold text-zinc-700 dark:text-zinc-200">−</button>
-        </div>
       </div>
 
-      {/* Canvas */}
-      <div className="w-full rounded-[20px] bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 overflow-hidden cursor-grab active:cursor-grabbing select-none relative"
-        style={{ height: '580px' }}
-        onMouseDown={onDown} onMouseMove={onMove} onMouseUp={onUp} onMouseLeave={onUp} onWheel={onWheel}>
+      {/* ── INTERACTIVE CANVAS DIAGRAM ── */}
+      <div
+        className="w-full rounded-3xl bg-zinc-900 text-white border border-zinc-800 overflow-hidden cursor-grab active:cursor-grabbing select-none relative shadow-xl"
+        style={{ height: '520px' }}
+        onMouseDown={onDown}
+        onMouseMove={onMove}
+        onMouseUp={onUp}
+        onMouseLeave={onUp}
+      >
+        {/* Canvas Controls */}
+        <div className="absolute top-4 right-4 z-20 flex items-center gap-1 bg-zinc-800/90 backdrop-blur-md p-1 rounded-full border border-zinc-700 text-xs font-mono">
+          <button onClick={() => setScale(s => Math.min(2, s + 0.15))} className="w-7 h-7 flex items-center justify-center hover:bg-zinc-700 rounded-full font-bold text-zinc-200">+</button>
+          <button onClick={() => { setScale(1); setPan({ x: 0, y: 0 }); }} className="px-2 h-7 text-[10px] text-zinc-400 hover:text-white">reset</button>
+          <button onClick={() => setScale(s => Math.max(0.5, s - 0.15))} className="w-7 h-7 flex items-center justify-center hover:bg-zinc-700 rounded-full font-bold text-zinc-200">−</button>
+        </div>
 
-        <svg width="100%" height="100%" viewBox="0 0 800 620" preserveAspectRatio="xMidYMid meet">
+        <div className="absolute top-4 left-4 z-20 flex items-center gap-2 text-[10px] font-mono text-zinc-400">
+          <span className="w-2 h-2 rounded-full bg-[#F5C542] animate-pulse" />
+          <span>Interactive Architectural Canvas · Click any block to inspect diagram</span>
+        </div>
+
+        {/* SVG Diagram Canvas */}
+        <svg width="100%" height="100%" viewBox="0 0 900 600" preserveAspectRatio="xMidYMid meet">
           <defs>
-            <marker id="arrow"        markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#d4d4d8" /></marker>
-            <marker id="arrow-active" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#F5C542" /></marker>
+            <pattern id="blueprint-grid" width="40" height="40" patternUnits="userSpaceOnUse">
+              <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#27272a" strokeWidth="1" opacity="0.4" />
+            </pattern>
+            <marker id="bp-arrow" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
+              <path d="M0,0 L0,6 L8,3 z" fill="#F5C542" />
+            </marker>
           </defs>
 
-          <g transform={`translate(${pan.x},${pan.y}) scale(${scale})`} style={{ transformOrigin: '400px 310px' }}>
+          {/* Grid Background */}
+          <rect width="100%" height="100%" fill="url(#blueprint-grid)" />
 
-            {/* Cluster backgrounds */}
-            {Object.entries(CLUSTERS).map(([key, c]) => {
-              const cNodes = visNodes.filter(n => n.cluster === key);
-              if (!cNodes.length) return null;
-              const xs = cNodes.map(n => n.x), ys = cNodes.map(n => n.y);
-              const x1 = Math.min(...xs) - NODE_W/2 - 18, x2 = Math.max(...xs) + NODE_W/2 + 18;
-              const y1 = Math.min(...ys) - NODE_H/2 - 28, y2 = Math.max(...ys) + NODE_H/2 + 16;
+          <g transform={`translate(${pan.x},${pan.y}) scale(${scale})`} style={{ transformOrigin: '450px 300px' }}>
+
+            {/* Connection Flow Arrows */}
+            {filteredEdges.map(e => {
+              const fn = getNode(e.from), tn = getNode(e.to);
+              if (!fn || !tn) return null;
+              const isSel = selectedNode?.id === e.from || selectedNode?.id === e.to;
+              const pathD = `M ${fn.x + 80} ${fn.y + 25} C ${fn.x + 80} ${(fn.y + tn.y)/2}, ${tn.x - 40} ${(fn.y + tn.y)/2}, ${tn.x - 60} ${tn.y + 25}`;
+
               return (
-                <g key={key}>
-                  <rect x={x1} y={y1} width={x2-x1} height={y2-y1} rx={14} fill={c.bg} stroke={c.border} strokeWidth={1} opacity={0.55} />
-                  <text x={x1+10} y={y1+16} fontSize={9} fontWeight="700" fill={c.text} fontFamily="'Inter',monospace" letterSpacing="1">{c.label}</text>
+                <g key={`${e.from}-${e.to}`}>
+                  <path
+                    d={pathD}
+                    fill="none"
+                    stroke={isSel ? '#F5C542' : '#52525b'}
+                    strokeWidth={isSel ? 2.5 : 1.5}
+                    strokeDasharray={isSel ? 'none' : '5 4'}
+                    markerEnd="url(#bp-arrow)"
+                    className="transition-all duration-200"
+                  />
                 </g>
               );
             })}
 
-            {/* Prerequisite edges with arrowheads */}
-            {visEdges.map(e => {
-              const fn = getNode(e.from), tn = getNode(e.to);
-              if (!fn || !tn) return null;
-              const y1 = fn.y + NODE_H/2, y2 = tn.y - NODE_H/2 - 6, cy = (y1+y2)/2;
-              const active = selected?.id === e.from || selected?.id === e.to;
-              return (
-                <path key={`${e.from}-${e.to}`}
-                  d={`M ${fn.x} ${y1} C ${fn.x} ${cy}, ${tn.x} ${cy}, ${tn.x} ${y2}`}
-                  fill="none" stroke={active ? '#F5C542' : '#d4d4d8'} strokeWidth={active ? 2 : 1.5}
-                  markerEnd={active ? 'url(#arrow-active)' : 'url(#arrow)'}
-                  className="transition-all duration-200" />
-              );
-            })}
+            {/* Diagram Architectural Blocks */}
+            {filteredNodes.map(node => {
+              const isSel = selectedNode?.id === node.id;
+              const layerStyle = LAYER_COLORS[node.layer] || LAYER_COLORS.memory;
 
-            {/* Nodes */}
-            {visNodes.map(node => {
-              const c = STATUS_COLORS[node.status] || STATUS_COLORS['Not Started'];
-              const isSel = selected?.id === node.id;
               return (
-                <g key={node.id} data-node="true"
-                  transform={`translate(${node.x},${node.y})`}
-                  onClick={() => setSelected(isSel ? null : node)}
-                  style={{ cursor: 'pointer' }}>
-                  <rect x={-NODE_W/2} y={-NODE_H/2} width={NODE_W} height={NODE_H} rx={8}
-                    fill={c.fill} stroke={isSel ? '#F5C542' : c.stroke} strokeWidth={isSel ? 2.5 : 1.5}
-                    filter={isSel ? 'drop-shadow(0 4px 14px rgba(245,197,66,0.4))' : 'none'}
-                    className="transition-all duration-150" />
-                  <text x={0} y={-4} textAnchor="middle" fill={c.text} fontSize={10} fontWeight="700" fontFamily="'Inter',sans-serif">{node.label}</text>
-                  <text x={0} y={11} textAnchor="middle" fill={c.text} fontSize={8} opacity={0.7} fontFamily="'Inter',sans-serif">{node.mastery}% · {node.status}</text>
+                <g
+                  key={node.id}
+                  data-node="true"
+                  transform={`translate(${node.x - 70},${node.y})`}
+                  onClick={() => setSelectedNode(node)}
+                  style={{ cursor: 'pointer' }}
+                >
+                  <rect
+                    x={0}
+                    y={0}
+                    width={160}
+                    height={54}
+                    rx={12}
+                    fill={isSel ? '#18181b' : '#0f0f12'}
+                    stroke={isSel ? '#F5C542' : layerStyle.border}
+                    strokeWidth={isSel ? 2.5 : 1.5}
+                    filter={isSel ? 'drop-shadow(0 0 16px rgba(245,197,66,0.35))' : 'none'}
+                    className="transition-all duration-150"
+                  />
+
+                  {/* Step Eyebrow */}
+                  <text x={12} y={16} fill={layerStyle.border} fontSize={8} fontWeight="800" fontFamily="monospace">
+                    STEP {node.stepNum} · {node.layer.toUpperCase()}
+                  </text>
+
+                  {/* Title */}
+                  <text x={12} y={32} fill="#ffffff" fontSize={10} fontWeight="700" fontFamily="'Inter',sans-serif">
+                    {node.label.length > 20 ? node.label.slice(0, 18) + '...' : node.label}
+                  </text>
+
+                  {/* Subtitle */}
+                  <text x={12} y={45} fill="#a1a1aa" fontSize={8} fontFamily="'Inter',sans-serif">
+                    {node.sub}
+                  </text>
                 </g>
               );
             })}
           </g>
         </svg>
-
-        <p className="absolute bottom-3 left-4 text-[10px] font-mono text-zinc-400 pointer-events-none">
-          Arrows = prerequisites · Drag to pan · Scroll to zoom · Click to inspect
-        </p>
       </div>
 
-      {/* Node detail — checklist 17 */}
-      {selected && (
-        <div className="border border-zinc-200 dark:border-zinc-800 rounded-[16px] p-5 space-y-4 bg-white dark:bg-zinc-900">
-          <div className="flex items-start justify-between">
+      {/* ── SELECTED DIAGRAM NODE INSPECTOR PANEL ── */}
+      {selectedNode && (
+        <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl p-6 md:p-8 space-y-5 shadow-lg animate-in fade-in-50 duration-200">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-100 dark:border-zinc-800 pb-4">
             <div>
-              <span className="text-[10px] font-mono text-zinc-400 uppercase font-bold block">{CLUSTERS[selected.cluster]?.label} · {selected.status}</span>
-              <h4 className="text-xl font-extrabold font-display text-zinc-900 dark:text-white mt-0.5">{selected.label}</h4>
+              <div className="flex items-center gap-2">
+                <span className="px-2.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 text-[10px] font-mono font-bold">
+                  STEP {selectedNode.stepNum} DIAGRAM BREAKDOWN
+                </span>
+                <span className="text-xs font-mono text-zinc-400">
+                  Type: {selectedNode.diagramType}
+                </span>
+              </div>
+              <h3 className="text-2xl font-extrabold font-display text-zinc-900 dark:text-white mt-1">
+                {selectedNode.label}
+              </h3>
             </div>
-            <button onClick={() => setSelected(null)} className="p-1 text-zinc-400 hover:text-zinc-700 dark:hover:text-white"><X size={16} /></button>
+
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={() => explainDiagramWithAI(selectedNode)}
+                className="bg-[#F5C542] hover:bg-[#E5B532] text-zinc-950 font-bold text-xs py-2.5 px-5 rounded-full shadow-pill transition-all inline-flex items-center gap-1.5"
+              >
+                <Sparkles size={14} />
+                <span>Explain Diagram with AI</span>
+              </button>
+
+              <button
+                onClick={() => startPracticeNode(selectedNode)}
+                className="bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 font-bold text-xs py-2.5 px-4 rounded-full hover:bg-[#F5C542] hover:text-zinc-950 transition-all inline-flex items-center gap-1"
+              >
+                <span>Practice</span>
+                <ArrowRight size={13} />
+              </button>
+            </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4 text-xs border-t border-zinc-100 dark:border-zinc-800 pt-3">
-            <div>
-              <span className="text-[10px] font-mono text-zinc-400 uppercase block mb-1">Mastery</span>
-              <span className="font-bold text-zinc-900 dark:text-white text-lg">{selected.mastery}%</span>
+          {/* ASCII / Visual Schema Box */}
+          <div className="space-y-2">
+            <span className="text-[10px] font-mono font-bold text-zinc-400 uppercase tracking-widest block">
+              VISUAL SCHEMATIC / MEMORY DIAGRAM
+            </span>
+            <div className="p-4 rounded-2xl bg-zinc-900 text-amber-400 font-mono text-xs overflow-x-auto leading-relaxed border border-zinc-800 shadow-inner">
+              <pre>{selectedNode.asciiDiagram}</pre>
             </div>
-            <div>
-              <span className="text-[10px] font-mono text-zinc-400 uppercase block mb-1">Required for</span>
-              <span className="font-bold text-zinc-900 dark:text-white">
-                {CLUSTERS[NODES.find(n => EDGES.some(e => e.from === selected.id && e.to === n.id))?.cluster]?.label || '—'}
+          </div>
+
+          {/* Rationale & Flow */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs font-mono">
+            <div className="p-4 rounded-2xl bg-zinc-50 dark:bg-zinc-800/40 border border-zinc-200/60 dark:border-zinc-700/60 space-y-1">
+              <span className="text-[10px] font-bold text-zinc-400 uppercase block">Prerequisite Diagram Flow</span>
+              <span className="font-bold text-zinc-900 dark:text-white block">
+                {selectedNode.prereqs.join(', ')}
               </span>
             </div>
-            <div>
-              <span className="text-[10px] font-mono text-zinc-400 uppercase block mb-1">Prerequisites</span>
-              <span className="text-zinc-700 dark:text-zinc-300 font-medium">
-                {EDGES.filter(e => e.to === selected.id).map(e => getNode(e.from)?.label).filter(Boolean).join(', ') || 'None'}
-              </span>
-            </div>
-            <div>
-              <span className="text-[10px] font-mono text-zinc-400 uppercase block mb-1">Unlocks</span>
-              <span className="text-zinc-700 dark:text-zinc-300 font-medium">
-                {EDGES.filter(e => e.from === selected.id).map(e => getNode(e.to)?.label).filter(Boolean).join(', ') || 'None'}
+
+            <div className="p-4 rounded-2xl bg-zinc-50 dark:bg-zinc-800/40 border border-zinc-200/60 dark:border-zinc-700/60 space-y-1">
+              <span className="text-[10px] font-bold text-zinc-400 uppercase block">Unlocks Diagram Path</span>
+              <span className="font-bold text-zinc-900 dark:text-white block">
+                {selectedNode.unlocks.join(', ')}
               </span>
             </div>
           </div>
 
-          <button onClick={() => { setSelected(null); navigate('/focus', { state: { task: { title: `Study ${selected.label}`, minutes: 25 } } }); }}
-            className="inline-flex items-center gap-1.5 bg-[#F5C542] hover:bg-[#E5B532] text-zinc-950 font-bold text-xs py-2 px-5 rounded-full shadow-pill transition-all">
-            Study This Skill →
-          </button>
+          <p className="text-xs text-zinc-500 font-medium leading-relaxed">
+            <strong className="text-zinc-800 dark:text-zinc-200">Architectural Note:</strong> {selectedNode.description}
+          </p>
         </div>
       )}
+
     </div>
   );
 };

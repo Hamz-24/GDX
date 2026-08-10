@@ -14,7 +14,6 @@ import Tasks from './pages/Tasks';
 import WeeklyReport from './pages/WeeklyReport';
 import FocusConsole from './pages/FocusConsole';
 import DataIntake from './pages/DataIntake';
-import Blueprint from './pages/Blueprint';
 import DataVault from './pages/DataVault';
 import Profile from './pages/Profile';
 import DailyConcept from './pages/DailyConcept';
@@ -37,7 +36,6 @@ function App() {
               <Route path="/tasks" element={<Tasks />} />
               <Route path="/report" element={<WeeklyReport />} />
               <Route path="/intake" element={<DataIntake />} />
-              <Route path="/blueprint" element={<Blueprint />} />
               <Route path="/vault" element={<DataVault />} />
               <Route path="/profile" element={<Profile />} />
               <Route path="/concept" element={<DailyConcept />} />

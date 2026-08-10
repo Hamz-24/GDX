@@ -41,7 +41,6 @@ const DashboardLayout = () => {
       group: 'INTELLIGENCE',
       items: [
         { icon: MessageSquare, label: 'AI Mentor', path: '/mentor' },
-        { icon: Network, label: 'Blueprint', path: '/blueprint' },
         { icon: Archive, label: 'Data Vault', path: '/vault' },
       ]
     },
