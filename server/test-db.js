@@ -1,14 +1,20 @@
 import 'dotenv/config';
 import mongoose from 'mongoose';
+import dns from 'dns';
+
+try {
+  dns.setServers(['8.8.8.8', '1.1.1.1']);
+} catch {}
+
 import User from './src/models/User.js';
 import Task from './src/models/Task.js';
 import IntakeCard from './src/models/IntakeCard.js';
 
 async function runTests() {
   try {
-    console.log('Connecting to MongoDB...');
+    console.log('Connecting to MongoDB Atlas...');
     await mongoose.connect(process.env.MONGO_URI);
-    console.log('✅ Connected.');
+    console.log('✅ Connected to Live MongoDB Atlas Database.');
 
     console.log('\n--- Running DB Validation Tests ---');
 
@@ -47,7 +53,7 @@ async function runTests() {
     await IntakeCard.findByIdAndDelete(dummyCard._id);
     console.log('✅ Cleanup complete.');
 
-    console.log('\n🚀 ALL TESTS PASSED. The DB setup is solid and ready for production!');
+    console.log('\n🚀 ALL TESTS PASSED. The Live MongoDB Atlas setup is solid and ready for production!');
     process.exit(0);
 
   } catch (err) {

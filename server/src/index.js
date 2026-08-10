@@ -2,7 +2,15 @@ import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import mongoose from 'mongoose';
+import dns from 'dns';
 import { seedDemoIfEmpty } from './utils/seed.js';
+
+// Configure DNS for MongoDB Atlas SRV resolution
+try {
+  dns.setServers(['8.8.8.8', '1.1.1.1']);
+} catch {
+  /* Ignore DNS override if un supported */
+}
 
 // Routes
 import authRoutes from './routes/auth.js';
@@ -43,12 +51,12 @@ async function startServer() {
   // 1. Try MongoDB Atlas URI if present
   if (process.env.MONGO_URI) {
     try {
-      console.log('🔄 Connecting to MongoDB Atlas...');
-      await mongoose.connect(process.env.MONGO_URI, { serverSelectionTimeoutMS: 3000 });
-      console.log('✅ Connected to MongoDB Atlas');
+      console.log('🔄 Connecting to MongoDB Atlas Cloud Database...');
+      await mongoose.connect(process.env.MONGO_URI, { serverSelectionTimeoutMS: 5000 });
+      console.log('✅ Connected to Live MongoDB Atlas Database!');
       connected = true;
     } catch (err) {
-      console.warn('⚠️ Atlas connection failed (likely IP whitelist or network issue). Attempting In-Memory MongoDB fallback...');
+      console.warn('⚠️ Atlas connection warning:', err.message);
     }
   }
 
