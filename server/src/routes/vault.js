@@ -16,9 +16,17 @@ router.get('/', async (req, res) => {
 // POST /api/vault
 router.post('/', async (req, res) => {
   try {
-    const { title, type, content, tags } = req.body;
+    const { title, type, category, content, summary, tags } = req.body;
     if (!title) return res.status(400).json({ message: 'Title required' });
-    const item = await VaultItem.create({ userId: req.user._id, title, type, content, tags });
+    const item = await VaultItem.create({
+      userId: req.user._id,
+      title,
+      type: type || 'note',
+      category: category || 'Personal Notes',
+      content: content || '',
+      summary: summary || (content ? content.slice(0, 100) : ''),
+      tags: tags || []
+    });
     res.status(201).json(item);
   } catch (err) { res.status(500).json({ message: err.message }); }
 });
