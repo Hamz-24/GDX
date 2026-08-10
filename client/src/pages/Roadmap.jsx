@@ -107,6 +107,15 @@ const Roadmap = () => {
     }
   };
 
+  const openConcept = (dayItem) => {
+    navigate('/concept', {
+      state: {
+        day: dayItem.day,
+        domain: selectedGoal
+      }
+    });
+  };
+
   const explainWithAI = (dayItem) => {
     navigate('/mentor', {
       state: {
@@ -364,7 +373,16 @@ const Roadmap = () => {
                         </div>
 
                         {/* Actions */}
-                        <div className="flex items-center gap-2 shrink-0">
+                        <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                          <button
+                            onClick={() => openConcept(dayItem)}
+                            className="bg-[#F5C542] hover:bg-[#E5B532] text-zinc-950 font-bold text-xs px-3.5 py-2 rounded-full transition-all inline-flex items-center gap-1.5 shadow-pill"
+                            title="Open Daily Concept Module for this Day"
+                          >
+                            <BookOpen size={13} />
+                            <span>Daily Concept</span>
+                          </button>
+
                           <button
                             onClick={() => explainWithAI(dayItem)}
                             className="bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 font-bold text-xs px-3.5 py-2 rounded-full hover:bg-[#F5C542] hover:text-zinc-950 transition-all inline-flex items-center gap-1.5 shadow-sm"

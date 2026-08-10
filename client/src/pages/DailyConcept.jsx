@@ -1,104 +1,7 @@
-import { useState } from 'react';
-import { Play, Sparkles, CheckCircle2, ArrowRight, BookOpen, Clock, ShieldCheck, Database, Cpu, Key } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
-import { USER_PROFILE, CORE_GOALS } from '../constants/userProfile';
-
-const DOMAIN_LESSONS = {
-  'DATA STRUCTURES': {
-    title: 'Sliding Window Pattern',
-    subtitle: 'Optimize subarray & substring problems from O(N²) nested loops to linear O(N) execution time.',
-    whyMatters: 'Subarray problems appear in over 80% of technical coding evaluations.',
-    arrayData: [2, 1, 5, 1, 3, 2],
-    codeSnippet: `def max_sub_array_of_size_k(k, arr):
-    max_sum = 0
-    window_sum = 0
-    window_start = 0
-
-    for window_end in range(len(arr)):
-        window_sum += arr[window_end]  # Add right element
-        if window_end >= k - 1:
-            max_sum = max(max_sum, window_sum)
-            window_sum -= arr[window_start]  # Subtract left element
-            window_start += 1  # Slide left forward
-    return max_sum`,
-    quizQuestion: 'Why does the Sliding Window pattern reduce time complexity from O(N²) to O(N)?',
-    quizOptions: [
-      { id: 'A', text: 'It sorts the input array in logarithmic time.' },
-      { id: 'B', text: 'Each element is added and removed from running sum at most once by left & right pointers.', correct: true },
-      { id: 'C', text: 'It creates nested loops that run in parallel.' }
-    ]
-  },
-  'DATABASE': {
-    title: 'B-Tree Indexing & Execution Plans',
-    subtitle: 'Understand how B-Tree indexes avoid full table scans by traversing balanced tree nodes in O(log N) time.',
-    whyMatters: 'Database index optimization transforms 1.2s slow queries into 4ms sub-millisecond responses.',
-    arrayData: [12, 25, 40, 68, 85, 99],
-    codeSnippet: `-- Create B-Tree Composite Index
-CREATE INDEX idx_user_orders ON orders (user_id, created_at DESC);
-
--- Profile Query Execution Plan
-EXPLAIN ANALYZE
-SELECT * FROM orders 
-WHERE user_id = 4821 
-ORDER BY created_at DESC 
-LIMIT 10;`,
-    quizQuestion: 'What type of execution plan is produced when a query matches a B-Tree index column directly?',
-    quizOptions: [
-      { id: 'A', text: 'Sequential Scan (Full Table Read)' },
-      { id: 'B', text: 'Index Scan or Index Only Scan via O(log N) node traversal', correct: true },
-      { id: 'C', text: 'Memory Leak Overflow Scan' }
-    ]
-  },
-  'SYSTEM DESIGN': {
-    title: 'Consistent Hashing Ring Architecture',
-    subtitle: 'Distribute requests evenly across servers without remapping all keys when nodes scale or fail.',
-    whyMatters: 'Consistent hashing is the core scaling mechanism behind Cassandra, DynamoDB, and Redis Cluster.',
-    arrayData: ['Node A', 'Node B', 'Node C', 'Node D'],
-    codeSnippet: `# Consistent Hashing Virtual Node Placement
-import hashlib
-
-def get_server_node(request_key, ring_nodes):
-    hash_val = int(hashlib.md5(request_key.encode()).hexdigest(), 16) % 360
-    # Find nearest server node on 360° ring
-    for node_angle, node_name in sorted(ring_nodes):
-        if hash_val <= node_angle:
-            return node_name
-    return ring_nodes[0][1]`,
-    quizQuestion: 'What happens in Consistent Hashing when a new server node is added to the cluster ring?',
-    quizOptions: [
-      { id: 'A', text: 'All keys in the cluster must be completely remapped.' },
-      { id: 'B', text: 'Only K/N keys are remapped to the new node, preserving 90%+ cache hits.', correct: true },
-      { id: 'C', text: 'The load balancer crashes until restarted.' }
-    ]
-  },
-  'AUTHENTICATION': {
-    title: 'JWT Tokens & Refresh Token Rotation',
-    subtitle: 'Implement stateless token authentication with short-lived access tokens and theft detection.',
-    whyMatters: 'JWT refresh rotation prevents replay attacks and enables instant token revocation.',
-    arrayData: ['Header', 'Payload', 'Signature', 'Refresh'],
-    codeSnippet: `// Verify JWT Token Middleware
-const jwt = require('jsonwebtoken');
-
-function verifyToken(req, res, next) {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
-  
-  if (!token) return res.sendStatus(401);
-
-  jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
-    if (err) return res.sendStatus(403); // Token expired/tampered
-    req.user = user;
-    next();
-  });
-}`,
-    quizQuestion: 'Why is it recommended to store Refresh Tokens in HttpOnly cookies instead of LocalStorage?',
-    quizOptions: [
-      { id: 'A', text: 'HttpOnly cookies cannot be read or stolen by malicious JavaScript (XSS attacks).', correct: true },
-      { id: 'B', text: 'LocalStorage only holds up to 10 bytes of data.' },
-      { id: 'C', text: 'HttpOnly cookies automatically disable server authentication.' }
-    ]
-  }
-};
+import { useState, useEffect } from 'react';
+import { Play, Sparkles, CheckCircle2, ArrowRight, BookOpen, Clock, ShieldCheck, Database, Cpu, Key, ChevronLeft, ChevronRight } from 'lucide-react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { USER_PROFILE, CORE_GOALS, generatePersonalizedRoadmap } from '../constants/userProfile';
 
 const STEPS = [
   { num: 1, key: 'understand', label: '01 UNDERSTAND' },
@@ -107,12 +10,147 @@ const STEPS = [
   { num: 4, key: 'prove',      label: '04 PROVE IT' },
 ];
 
+/**
+ * Dynamic Concept Generator for ANY Day and ANY Domain
+ */
+function getConceptForDayAndDomain(domainName, dayNum) {
+  const roadmapWeeks = generatePersonalizedRoadmap(domainName, 4, 'Basic / Beginner');
+  
+  // Find topic matching dayNum across roadmap
+  let foundTopic = `Day ${dayNum} Core Module`;
+  let phaseTitle = domainName;
+  
+  for (const week of roadmapWeeks) {
+    for (const d of week.days) {
+      if (d.day === Number(dayNum)) {
+        foundTopic = d.title.replace(`Day ${dayNum}: `, '');
+        phaseTitle = week.title;
+        break;
+      }
+    }
+  }
+
+  const dUpper = domainName.toUpperCase();
+
+  // 1. DATA STRUCTURES CONCEPTS
+  if (dUpper.includes('DATA') || dUpper.includes('DS')) {
+    return {
+      title: foundTopic,
+      phase: phaseTitle,
+      subtitle: `Master ${foundTopic} with linear execution efficiency and optimal space complexity.`,
+      whyMatters: `${foundTopic} is a core algorithmic primitive used in high-performance software engineering.`,
+      nodes: [`Node 1: Init`, `Node 2: Pointers`, `Node 3: Process`, `Node 4: Return`],
+      codeSnippet: `# ${foundTopic} Implementation
+def solve_day_${dayNum}(data_input):
+    # Step 1: Initialize structural pointers
+    left, right = 0, len(data_input) - 1
+    result = []
+    
+    # Step 2: Iterate through inputs in O(N) time
+    while left <= right:
+        if data_input[left] <= data_input[right]:
+            result.append(data_input[left])
+            left += 1
+        else:
+            result.append(data_input[right])
+            right -= 1
+            
+    return result`,
+      quizQuestion: `What is the optimal Time Complexity for ${foundTopic}?`,
+      quizOptions: [
+        { id: 'A', text: 'O(N^2) time due to nested brute force iterations.' },
+        { id: 'B', text: 'O(N) or O(log N) optimal linear/logarithmic execution.', correct: true },
+        { id: 'C', text: 'O(2^N) exponential call stack overhead.' }
+      ]
+    };
+  }
+
+  // 2. DATABASE CONCEPTS
+  if (dUpper.includes('DATABASE') || dUpper.includes('DB')) {
+    return {
+      title: foundTopic,
+      phase: phaseTitle,
+      subtitle: `Optimize queries, B-Tree leaf node traversals, and execution plans for ${foundTopic}.`,
+      whyMatters: `Database indexing and SQL execution tuning transforms slow table scans into sub-millisecond lookups.`,
+      nodes: [`Index Root`, `Internal Node`, `Leaf Page`, `Row ID`],
+      codeSnippet: `-- ${foundTopic} SQL Query Optimization
+EXPLAIN ANALYZE
+SELECT id, user_id, status, created_at 
+FROM production_logs 
+WHERE status = 'ACTIVE' AND created_at >= NOW() - INTERVAL '7 days'
+ORDER BY created_at DESC 
+LIMIT 50;`,
+      quizQuestion: `How does ${foundTopic} impact query performance on a large database table?`,
+      quizOptions: [
+        { id: 'A', text: 'It forces a Sequential Full Table Scan across all disk pages.' },
+        { id: 'B', text: 'It utilizes B-Tree indexes to jump directly to target row pages in O(log N) steps.', correct: true },
+        { id: 'C', text: 'It temporarily locks the database until restarted.' }
+      ]
+    };
+  }
+
+  // 3. SYSTEM DESIGN CONCEPTS
+  if (dUpper.includes('SYSTEM') || dUpper.includes('SYS')) {
+    return {
+      title: foundTopic,
+      phase: phaseTitle,
+      subtitle: `Design high-throughput, fault-tolerant distributed architectures for ${foundTopic}.`,
+      whyMatters: `Scalable distributed design prevents single points of failure under millions of concurrent requests.`,
+      nodes: [`Client App`, `Load Balancer`, `API Cluster`, `Cache Layer`],
+      codeSnippet: `# ${foundTopic} Distributed Architecture
+def route_incoming_request(request_payload):
+    # Step 1: Generate hash key for request
+    hash_key = hash(request_payload.user_id) % 360
+    
+    # Step 2: Route request to healthy cluster node
+    target_node = consistent_hash_ring.get_nearest_node(hash_key)
+    return target_node.execute(request_payload)`,
+      quizQuestion: `What is the key architectural trade-off when implementing ${foundTopic}?`,
+      quizOptions: [
+        { id: 'A', text: 'Increasing network latency to guarantee absolute synchronous consistency (CAP Theorem).' },
+        { id: 'B', text: 'Balancing Availability vs Consistency under network partitions.', correct: true },
+        { id: 'C', text: 'Eliminating all server instances in favor of client-only processing.' }
+      ]
+    };
+  }
+
+  // 4. AUTHENTICATION CONCEPTS
+  return {
+    title: foundTopic,
+    phase: phaseTitle,
+    subtitle: `Implement stateless security, cryptographically signed tokens, and protection for ${foundTopic}.`,
+    whyMatters: `Robust identity & access control shields your web APIs against XSS, CSRF, and token theft.`,
+    nodes: [`Header`, `Payload`, `Signature`, 'HttpOnly Cookie'],
+    codeSnippet: `// ${foundTopic} Security Middleware
+function verifyAuthToken(req, res, next) {
+  const token = req.headers['authorization']?.split(' ')[1];
+  if (!token) return res.status(401).json({ message: 'Unauthorized access token' });
+
+  jwt.verify(token, process.env.JWT_SECRET, (err, decodedUser) => {
+    if (err) return res.status(403).json({ message: 'Invalid or expired token' });
+    req.user = decodedUser;
+    next();
+  });
+}`,
+    quizQuestion: `What is the primary security benefit of ${foundTopic}?`,
+    quizOptions: [
+      { id: 'A', text: 'It prevents credential theft and enforces cryptographic signature verification.', correct: true },
+      { id: 'B', text: 'It removes the need for password hashing algorithms.' },
+      { id: 'C', text: 'It forces all client requests to run synchronously on a single thread.' }
+    ]
+  };
+}
+
 const DailyConcept = () => {
   const navigate = useNavigate();
+  const location = useLocation();
 
-  // Active Domain Switcher (Defaulting to user profile domain)
-  const [selectedDomain, setSelectedDomain] = useState(USER_PROFILE.targetRole || 'DATA STRUCTURES');
-  const activeLesson = DOMAIN_LESSONS[selectedDomain] || DOMAIN_LESSONS['DATA STRUCTURES'];
+  // Selected Domain & Day Number State
+  const [selectedDomain, setSelectedDomain] = useState(location.state?.domain || USER_PROFILE.targetRole || 'DATA STRUCTURES');
+  const [currentDayNum, setCurrentDayNum] = useState(location.state?.day || 3);
+
+  // Dynamic Concept Data for active Domain and Day!
+  const concept = getConceptForDayAndDomain(selectedDomain, currentDayNum);
 
   const [activeStep, setActiveStep] = useState(1);
   const [completedSteps, setCompletedSteps] = useState(new Set());
@@ -120,11 +158,21 @@ const DailyConcept = () => {
   // Interactive Simulation State
   const [simIndex, setSimIndex] = useState(0);
   const [isSimulating, setIsSimulating] = useState(false);
-  const [simulationLog, setSimulationLog] = useState([`Initialized ${selectedDomain} concept module.`]);
+  const [simulationLog, setSimulationLog] = useState([`Loaded Day ${currentDayNum} concept: ${concept.title}`]);
 
   // Quiz state
   const [selectedOption, setSelectedOption] = useState(null);
   const [quizSubmitted, setQuizSubmitted] = useState(false);
+
+  // Reset steps when day or domain changes
+  useEffect(() => {
+    setActiveStep(1);
+    setCompletedSteps(new Set());
+    setSelectedOption(null);
+    setQuizSubmitted(false);
+    setSimulationLog([`Loaded Day ${currentDayNum} concept: ${concept.title}`]);
+    setSimIndex(0);
+  }, [selectedDomain, currentDayNum]);
 
   const markComplete = (stepNum) => {
     setCompletedSteps(prev => new Set([...prev, stepNum]));
@@ -138,33 +186,41 @@ const DailyConcept = () => {
   const runConceptSimulation = () => {
     if (isSimulating) return;
     setIsSimulating(true);
-    setSimulationLog([`Starting interactive ${selectedDomain} simulation...`]);
+    setSimulationLog([`Starting interactive simulation for Day ${currentDayNum}: ${concept.title}...`]);
     setSimIndex(0);
 
     let idx = 0;
     const interval = setInterval(() => {
       idx += 1;
-      if (idx >= activeLesson.arrayData.length) {
+      if (idx >= concept.nodes.length) {
         clearInterval(interval);
         setIsSimulating(false);
         markComplete(2);
-        setSimulationLog(l => [...l, `✓ Simulation Complete: All ${selectedDomain} nodes processed!`]);
+        setSimulationLog(l => [...l, `✓ Simulation Complete: Processed all nodes for ${concept.title}!`]);
         return;
       }
 
       setSimIndex(idx);
       setSimulationLog(l => [
         ...l,
-        `Step ${idx}: Traversed node "${activeLesson.arrayData[idx]}" -> Optimal State Confirmed.`
+        `Step ${idx + 1}: Executed node "${concept.nodes[idx]}" -> Invariant Confirmed.`
       ]);
-    }, 800);
+    }, 850);
+  };
+
+  const handleNextDay = () => {
+    setCurrentDayNum(prev => prev + 1);
+  };
+
+  const handlePrevDay = () => {
+    if (currentDayNum > 1) setCurrentDayNum(prev => prev - 1);
   };
 
   const askInMentor = () => {
     navigate('/mentor', {
       state: {
-        dayTopic: activeLesson.title,
-        prompt: `Explain ${activeLesson.title} in ${selectedDomain}. Provide step-by-step logic, code, and edge cases.`,
+        dayTopic: `Day ${currentDayNum}: ${concept.title}`,
+        prompt: `Explain Day ${currentDayNum} concept (${concept.title}) in ${selectedDomain}. Provide step-by-step logic, code, and key interview questions.`,
         goal: selectedDomain
       }
     });
@@ -173,23 +229,50 @@ const DailyConcept = () => {
   return (
     <div className="max-w-3xl mx-auto space-y-8 font-sans pb-16">
 
+      {/* Day Navigation & Domain Bar */}
+      <div className="flex items-center justify-between gap-4 p-4 rounded-2xl bg-zinc-900 text-white border border-zinc-800">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handlePrevDay}
+            disabled={currentDayNum <= 1}
+            className="p-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 disabled:opacity-40 transition-colors text-xs font-mono font-bold flex items-center gap-1"
+          >
+            <ChevronLeft size={14} /> Prev Day
+          </button>
+          <span className="px-3 py-1 bg-[#F5C542] text-zinc-950 rounded-full text-xs font-mono font-extrabold">
+            DAY {currentDayNum} MODULE
+          </span>
+        </div>
+
+        <div className="text-xs font-mono text-amber-400 font-bold truncate">
+          {concept.phase}
+        </div>
+
+        <button
+          onClick={handleNextDay}
+          className="p-2 px-3 rounded-xl bg-[#F5C542] hover:bg-[#E5B532] text-zinc-950 transition-colors text-xs font-mono font-extrabold flex items-center gap-1 shadow-pill"
+        >
+          Next Day <ChevronRight size={14} />
+        </button>
+      </div>
+
       {/* Header Banner */}
       <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl p-6 md:p-8 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div className="space-y-2">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="px-3 py-1 bg-amber-100 dark:bg-amber-950/60 text-amber-900 dark:text-amber-300 rounded-full text-xs font-mono font-bold">
-              DAILY MICRO-LESSON · 6 MIN
+              DAILY MICRO-LESSON · DAY {currentDayNum}
             </span>
-            <span className="px-3 py-1 bg-[#F5C542] text-zinc-950 rounded-full text-xs font-mono font-extrabold">
+            <span className="px-3 py-1 bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 rounded-full text-xs font-mono font-bold">
               {selectedDomain}
             </span>
           </div>
 
           <h1 className="text-3xl md:text-4xl font-extrabold font-display text-zinc-900 dark:text-white tracking-tight">
-            {activeLesson.title}
+            Day {currentDayNum}: {concept.title}
           </h1>
           <p className="text-xs text-zinc-500 font-medium">
-            {activeLesson.subtitle}
+            {concept.subtitle}
           </p>
         </div>
 
@@ -206,12 +289,7 @@ const DailyConcept = () => {
         {CORE_GOALS.map(g => (
           <button
             key={g.id}
-            onClick={() => {
-              setSelectedDomain(g.name);
-              setActiveStep(1);
-              setQuizSubmitted(false);
-              setSelectedOption(null);
-            }}
+            onClick={() => setSelectedDomain(g.name)}
             className={`px-4 py-2 rounded-full text-xs font-mono font-bold whitespace-nowrap transition-all flex items-center gap-1.5 ${
               selectedDomain === g.name
                 ? 'bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 shadow-sm'
@@ -256,23 +334,23 @@ const DailyConcept = () => {
           <div className="space-y-1">
             <span className="text-[10px] font-mono font-bold text-amber-500 uppercase tracking-widest block">01 CONCEPT INTUITION</span>
             <h2 className="text-xl font-extrabold font-display text-zinc-900 dark:text-white">
-              Why {activeLesson.title} Matters
+              Why Day {currentDayNum} ({concept.title}) Matters
             </h2>
           </div>
 
           <div className="space-y-4 text-xs text-zinc-700 dark:text-zinc-300 leading-relaxed font-sans">
             <p className="text-sm font-semibold text-zinc-900 dark:text-white">
-              {activeLesson.whyMatters}
+              {concept.whyMatters}
             </p>
 
             <p>
-              {activeLesson.subtitle}
+              {concept.subtitle}
             </p>
 
             <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/60 font-mono text-xs text-amber-900 dark:text-amber-200 space-y-1">
-              <div>1. Core Invariant: Maintain structural guarantees.</div>
-              <div>2. Time Complexity Target: Achieve optimal linear or logarithmic steps.</div>
-              <div>3. Production Impact: Prevents system bottlenecks under load.</div>
+              <div>1. Target Focus: {concept.title} primitives.</div>
+              <div>2. Execution Target: Optimal complexity and zero runtime errors.</div>
+              <div>3. Production Utility: Core building block in production systems.</div>
             </div>
           </div>
 
@@ -287,30 +365,30 @@ const DailyConcept = () => {
         </div>
       )}
 
-      {/* ── STEP 2: SEE IT — Interactive Domain Simulation ── */}
+      {/* ── STEP 2: SEE IT — Interactive Node Visualizer ── */}
       {activeStep === 2 && (
         <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl p-6 md:p-8 space-y-6 shadow-sm">
           <div className="space-y-1">
             <span className="text-[10px] font-mono font-bold text-amber-500 uppercase tracking-widest block">02 INTERACTIVE DOM VISUALIZER</span>
             <h2 className="text-xl font-extrabold font-display text-zinc-900 dark:text-white">
-              {selectedDomain}: Interactive Simulation
+              Day {currentDayNum}: Interactive Simulation
             </h2>
           </div>
 
           {/* Interactive Cards Grid */}
           <div className="p-6 rounded-2xl bg-zinc-900 text-white space-y-6">
             <div className="flex items-center justify-between text-xs font-mono text-zinc-400 border-b border-zinc-800 pb-3">
-              <span>Active Target Domain: <strong className="text-[#F5C542]">{selectedDomain}</strong></span>
-              <span>Active Node Index: <strong className="text-emerald-400">{simIndex}</strong></span>
+              <span>Day Topic: <strong className="text-[#F5C542]">{concept.title}</strong></span>
+              <span>Node Execution: <strong className="text-emerald-400">Step {simIndex + 1} / {concept.nodes.length}</strong></span>
             </div>
 
             {/* Visual Node Box Cards */}
             <div className="flex items-center justify-center gap-2 sm:gap-3 flex-wrap">
-              {activeLesson.arrayData.map((val, idx) => {
+              {concept.nodes.map((nodeLabel, idx) => {
                 const isActive = idx === simIndex;
                 return (
                   <div key={idx} className="flex flex-col items-center gap-2">
-                    <span className="text-[10px] font-mono text-zinc-500">Node {idx + 1}</span>
+                    <span className="text-[10px] font-mono text-zinc-500">Step {idx + 1}</span>
                     <div
                       className={`px-4 py-3 sm:px-5 sm:py-4 rounded-2xl flex flex-col items-center justify-center font-mono font-extrabold text-xs sm:text-sm border-2 transition-all duration-300 ${
                         isActive
@@ -318,8 +396,8 @@ const DailyConcept = () => {
                           : 'bg-zinc-800 text-zinc-400 border-zinc-700'
                       }`}
                     >
-                      <span>{String(val)}</span>
-                      {isActive && <span className="text-[8px] font-bold uppercase tracking-tighter text-zinc-950 mt-1">● ACTIVE</span>}
+                      <span>{nodeLabel}</span>
+                      {isActive && <span className="text-[8px] font-bold uppercase tracking-tighter text-zinc-950 mt-1">● EXECUTING</span>}
                     </div>
                   </div>
                 );
@@ -344,7 +422,7 @@ const DailyConcept = () => {
               className="bg-[#F5C542] hover:bg-[#E5B532] text-zinc-950 font-bold text-xs py-3 px-6 rounded-full shadow-pill transition-all inline-flex items-center gap-2 disabled:opacity-60"
             >
               <Play size={14} className="fill-zinc-950" />
-              <span>{isSimulating ? 'Simulating...' : `Simulate ${selectedDomain}`}</span>
+              <span>{isSimulating ? 'Simulating...' : `Simulate Day ${currentDayNum}`}</span>
             </button>
 
             <button onClick={() => goToStep(3)} className="text-xs font-bold text-zinc-500 hover:text-zinc-900 dark:hover:text-white transition-colors">
@@ -360,16 +438,16 @@ const DailyConcept = () => {
           <div className="space-y-1">
             <span className="text-[10px] font-mono font-bold text-amber-500 uppercase tracking-widest block">03 CODE IMPLEMENTATION</span>
             <h2 className="text-xl font-extrabold font-display text-zinc-900 dark:text-white">
-              {selectedDomain}: Core Pattern Code
+              Day {currentDayNum}: {concept.title} Code
             </h2>
           </div>
 
           <div className="rounded-2xl overflow-hidden border border-zinc-800 shadow-sm">
             <div className="px-4 py-2.5 bg-zinc-950 text-[11px] font-mono text-amber-400 font-bold border-b border-zinc-800 flex justify-between">
-              <span>{selectedDomain.toLowerCase().replace(' ', '_')}_implementation</span>
-              <span className="text-zinc-500">Production Code</span>
+              <span>day_{currentDayNum}_{concept.title.toLowerCase().replace(/[^a-z0-0]/g, '_')}</span>
+              <span className="text-zinc-500">Day {currentDayNum} Production Code</span>
             </div>
-            <pre className="p-4 bg-zinc-900 text-zinc-100 font-mono text-xs overflow-x-auto leading-relaxed">{activeLesson.codeSnippet}</pre>
+            <pre className="p-4 bg-zinc-900 text-zinc-100 font-mono text-xs overflow-x-auto leading-relaxed">{concept.codeSnippet}</pre>
           </div>
 
           <div className="pt-2 flex justify-end">
@@ -389,16 +467,16 @@ const DailyConcept = () => {
           <div className="space-y-1">
             <span className="text-[10px] font-mono font-bold text-amber-500 uppercase tracking-widest block">04 KNOWLEDGE PROOF</span>
             <h2 className="text-xl font-extrabold font-display text-zinc-900 dark:text-white">
-              {selectedDomain} Assessment Quiz
+              Day {currentDayNum} Quiz: {concept.title}
             </h2>
           </div>
 
           <h4 className="text-sm font-bold text-zinc-900 dark:text-white font-display">
-            {activeLesson.quizQuestion}
+            {concept.quizQuestion}
           </h4>
 
           <div className="space-y-3">
-            {activeLesson.quizOptions.map(opt => (
+            {concept.quizOptions.map(opt => (
               <button
                 key={opt.id}
                 onClick={() => !quizSubmitted && setSelectedOption(opt.id)}
@@ -430,21 +508,20 @@ const DailyConcept = () => {
             </button>
 
             {quizSubmitted && (
-              <span className={`text-xs font-bold font-mono ${activeLesson.quizOptions.find(o => o.id === selectedOption)?.correct ? 'text-emerald-500' : 'text-rose-500'}`}>
-                {activeLesson.quizOptions.find(o => o.id === selectedOption)?.correct ? '✓ Correct!' : '✗ Incorrect. Review concept intuition above.'}
+              <span className={`text-xs font-bold font-mono ${concept.quizOptions.find(o => o.id === selectedOption)?.correct ? 'text-emerald-500' : 'text-rose-500'}`}>
+                {concept.quizOptions.find(o => o.id === selectedOption)?.correct ? '✓ Correct! Micro-lesson passed.' : '✗ Incorrect. Review concept intuition.'}
               </span>
             )}
           </div>
 
           {quizSubmitted && (
-            <div className="pt-4 border-t border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
-              <span className="text-xs text-zinc-500 font-mono">Daily concept micro-lesson completed!</span>
+            <div className="pt-4 border-t border-zinc-200 dark:border-zinc-800 flex items-center justify-between gap-4">
+              <span className="text-xs text-zinc-500 font-mono">Day {currentDayNum} concept completed!</span>
               <button
-                onClick={() => navigate('/dashboard')}
-                className="bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 font-bold text-xs py-2.5 px-5 rounded-full hover:bg-[#F5C542] hover:text-zinc-950 transition-all inline-flex items-center gap-1.5"
+                onClick={handleNextDay}
+                className="bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 font-bold text-xs py-2.5 px-5 rounded-full hover:bg-[#F5C542] hover:text-zinc-950 transition-all inline-flex items-center gap-1.5 shadow-pill"
               >
-                <span>Return to Dashboard</span>
-                <ArrowRight size={13} />
+                <span>Advance to Day {currentDayNum + 1} Concept →</span>
               </button>
             </div>
           )}
