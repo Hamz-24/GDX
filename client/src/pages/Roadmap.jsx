@@ -16,8 +16,8 @@ const Roadmap = () => {
   const [showGoalModal, setShowGoalModal] = useState(false);
   const [loadingBackend, setLoadingBackend] = useState(true);
 
-  // Active roadmap data
-  const [roadmapData, setRoadmapData] = useState(() => getRoadmapByGoal(selectedGoal));
+  // Active roadmap data generated dynamically for timeline (4, 8, 12 weeks), level, & domain!
+  const [roadmapData, setRoadmapData] = useState(() => getRoadmapByGoal(selectedGoal, timeline, level));
   // Default expanded week
   const [expandedWeek, setExpandedWeek] = useState(1);
 
@@ -64,21 +64,21 @@ const Roadmap = () => {
         }
       })
       .catch(() => {
-        // Silent fallback to pre-cooked domain templates
+        // Fallback to dynamic personalized curriculum
       })
       .finally(() => {
         if (isMounted) setLoadingBackend(false);
       });
 
     return () => { isMounted = false; };
-  }, [selectedGoal]);
+  }, [selectedGoal, timeline, level]);
 
   const toggleWeek = (id) => setExpandedWeek(prev => prev === id ? null : id);
 
   const handleGoalSubmit = async (e) => {
     e.preventDefault();
     setLoadingBackend(true);
-    const newRoadmap = getRoadmapByGoal(selectedGoal);
+    const newRoadmap = getRoadmapByGoal(selectedGoal, timeline, level);
     setRoadmapData(newRoadmap);
     setExpandedWeek(1);
     setShowGoalModal(false);
@@ -135,7 +135,7 @@ const Roadmap = () => {
               {level.toUpperCase()}
             </span>
             <span className="px-3 py-1 bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 rounded-full text-xs font-mono font-bold">
-              ⏱ {timeline} TIMELINE
+              ⏱ {timeline} TIMELINE ({roadmapData.length * 7} DAYS TOTAL)
             </span>
             <span className="px-3 py-1 bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 rounded-full text-xs font-mono font-bold">
               CONNECTED BACKEND
@@ -146,7 +146,7 @@ const Roadmap = () => {
             {selectedGoal}
           </h1>
           <p className="text-xs text-zinc-500 font-medium">
-            Structured day-by-day roadmap synced with MongoDB & GuideX Backend API.
+            Personalized {roadmapData.length}-Week curriculum ({roadmapData.length * 7} Days) tailored for {level} level in {selectedGoal}.
           </p>
         </div>
 
@@ -166,7 +166,7 @@ const Roadmap = () => {
               <div>
                 <span className="text-[10px] font-mono font-bold text-amber-500 uppercase tracking-widest block">GOAL ENGINE</span>
                 <h3 className="text-xl font-extrabold font-display text-zinc-900 dark:text-white mt-0.5">
-                  Select Core Goal & Sync Backend
+                  Select Core Goal & Timeline
                 </h3>
               </div>
               <button onClick={() => setShowGoalModal(false)} className="p-1 text-zinc-400 hover:text-zinc-700 dark:hover:text-white">
@@ -207,7 +207,7 @@ const Roadmap = () => {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-zinc-700 dark:text-zinc-300 font-bold mb-2">2. Timeline</label>
+                  <label className="block text-zinc-700 dark:text-zinc-300 font-bold mb-2">2. Timeline Duration</label>
                   <select
                     value={timeline}
                     onChange={e => setTimeline(e.target.value)}
@@ -220,7 +220,7 @@ const Roadmap = () => {
                 </div>
 
                 <div>
-                  <label className="block text-zinc-700 dark:text-zinc-300 font-bold mb-2">3. Level</label>
+                  <label className="block text-zinc-700 dark:text-zinc-300 font-bold mb-2">3. Experience Level</label>
                   <select
                     value={level}
                     onChange={e => setLevel(e.target.value)}
@@ -239,7 +239,7 @@ const Roadmap = () => {
                   disabled={loadingBackend}
                   className="w-full bg-[#F5C542] hover:bg-[#E5B532] text-zinc-950 font-bold text-sm py-3.5 rounded-2xl shadow-pill transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                 >
-                  <Sparkles size={16} /> Sync Goal & Load Backend Roadmap
+                  <Sparkles size={16} /> Generate {timeline} Personalized Curriculum
                 </button>
               </div>
             </form>
@@ -252,12 +252,12 @@ const Roadmap = () => {
         <div className="flex items-center gap-2">
           <Sparkles size={15} className="text-amber-500 shrink-0" />
           <span className="text-zinc-800 dark:text-zinc-200 font-medium">
-            <strong className="font-bold">{selectedGoal} Backend Roadmap Active:</strong> Day-by-day curriculum linked with MongoDB & Express API.
+            <strong className="font-bold">{roadmapData.length}-Week Personal Roadmap Active:</strong> {roadmapData.length * 7} Days generated for {selectedGoal} ({level}).
           </span>
         </div>
       </div>
 
-      {/* 4-WEEK ROADMAP TIMELINE */}
+      {/* DYNAMIC MULTI-WEEK ROADMAP TIMELINE */}
       <div className="space-y-6">
         {roadmapData.map(week => (
           <div

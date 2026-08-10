@@ -29,323 +29,155 @@ export const USER_PROFILE = {
   activeStreak: 7,
 };
 
-/* ── 1. DATA STRUCTURES ROADMAP ── */
-export const DSA_ROADMAP = [
-  {
-    id: 1,
-    num: 'WEEK 01',
-    title: 'ARRAYS, STRINGS & MEMORY LAYOUT',
-    status: 'In Progress',
-    current: true,
-    progress: 42,
-    duration: '7 Days',
-    whyMatters: 'Contiguous memory layout and direct array indexing arithmetic.',
-    days: [
-      { day: 1, title: 'Day 1: Array Fundamentals & Contiguous Memory', desc: 'RAM layout, base address calculation, O(1) access time.', status: 'Completed', duration: '40 min', prompt: 'Explain Day 1 of Data Structures: Array Memory Layout for a Beginner.' },
-      { day: 2, title: 'Day 2: Two-Pointer Technique (In-Place Swaps)', desc: 'Left/right pointer convergence, array reversal in O(1) space.', status: 'Completed', duration: '45 min', prompt: 'Explain Day 2 of Data Structures: Two-Pointer Technique.' },
-      { day: 3, title: 'Day 3: Sliding Window Pattern (Fixed & Variable)', desc: 'Subarray problems without nested loops.', status: 'In Progress', current: true, duration: '50 min', prompt: 'Explain Day 3 of Data Structures: Sliding Window Pattern.' },
-      { day: 4, title: 'Day 4: Matrix & 2D Array Traversals', desc: 'Row-major vs column-major grid storage.', status: 'Upcoming', duration: '45 min', prompt: 'Explain Day 4 of Data Structures: 2D Matrix Traversals.' },
-      { day: 5, title: 'Day 5: Prefix Sums & Range Queries', desc: 'Cumulative sum arrays for O(1) subarray query response.', status: 'Upcoming', duration: '40 min', prompt: 'Explain Day 5 of Data Structures: Prefix Sum Technique.' },
-      { day: 6, title: 'Day 6: Binary Search Space Reduction', desc: 'Mid point calculation low + (high - low)/2 without overflow.', status: 'Upcoming', duration: '50 min', prompt: 'Explain Day 6 of Data Structures: Binary Search.' },
-      { day: 7, title: 'Day 7: Week 1 Problem Sprint & Review', desc: 'Solve 3 beginner LeetCode problems (Two Sum, Stock, Duplicates).', status: 'Upcoming', duration: '60 min', prompt: 'Provide a Week 1 Review for Data Structures: Arrays & Strings.' }
+/* ── DOMAIN CURRICULUM TOPICS PER WEEK & LEVEL ── */
+const CURRICULUM_TEMPLATES = {
+  'DATA STRUCTURES': {
+    whyMatters: 'Algorithmic efficiency, contiguous RAM layout, and optimal memory management.',
+    weeks: [
+      { num: 'WEEK 01', title: 'ARRAYS, STRINGS & MEMORY LAYOUT', topics: ['Array Memory Layout & Base Addressing', 'Two-Pointer Technique & Array Reversal', 'Sliding Window Pattern (Fixed & Variable)', '2D Matrix Storage & Grid Traversals', 'Prefix Sums & Range Queries', 'Binary Search Space Reduction', 'Week 1 Problem Sprint & Review'] },
+      { num: 'WEEK 02', title: 'LINKED LISTS, STACKS & QUEUES', topics: ['Singly Linked List Node Allocation', 'Reversing Linked Lists & Fast/Slow Pointers', 'Doubly Linked Lists & Sentinel Nodes', 'Stack LIFO & Call Stack Mechanics', 'Monotonic Stack Pattern', 'Queue FIFO & Circular Queue Arrays', 'Week 2 Sprint: Valid Parentheses & Min-Stack'] },
+      { num: 'WEEK 03', title: 'TREES, BST & GRAPH TRAVERSALS', topics: ['Recursion & Call Stack Frames', 'Binary Tree DFS (Pre, In, Post)', 'BST Invariant & Balanced Search', 'Level-Order Traversal (BFS)', 'Graph Adjacency List vs Matrix', 'Graph DFS vs BFS Traversal', 'Week 3 Sprint: Invert Tree & Graph Cycles'] },
+      { num: 'WEEK 04', title: 'HEAPS, SORTING & DYNAMIC PROGRAMMING', topics: ['Hash Tables & Collision Resolution', 'Binary Heap & Priority Queue Operations', 'O(N log N) Sorting (Merge vs Quick)', 'Intro to DP: Top-Down Memoization', 'Bottom-Up DP Tabulation', 'Full Big-O Complexity Cheat Sheet', 'Week 4 Capstone Mock Interview'] },
+      { num: 'WEEK 05', title: 'ADVANCED GRAPH ALGORITHMS', topics: ['Dijkstra Shortest Path Algorithm', 'Bellman-Ford & Negative Weight Cycles', 'Kruskal & Prim Minimum Spanning Trees', 'Topological Sort & Dependency Resolution', 'Tarjan Strongly Connected Components', 'Network Flow & Ford-Fulkerson', 'Week 5 Graph Optimization Review'] },
+      { num: 'WEEK 06', title: 'ADVANCED DYNAMIC PROGRAMMING', topics: ['0/1 Knapsack & Unbounded Knapsack', 'Longest Common Subsequence (LCS)', 'Edit Distance & String DP', 'Matrix Chain Multiplication', 'Bitmask DP & Traveling Salesperson', 'DP on Trees & DAGs', 'Week 6 DP Masterclass Review'] },
+      { num: 'WEEK 07', title: 'TRIE, SEGMENT TREES & DISJOINT SET', topics: ['Trie (Prefix Tree) Implementation', 'Disjoint Set Union (DSU / Union-Find)', 'Path Compression & Union by Rank', 'Segment Tree Range Queries', 'Fenwick Tree (Binary Indexed Tree)', 'Suffix Automata & String Matching', 'Week 7 Advanced Data Structure Review'] },
+      { num: 'WEEK 08', title: 'SYSTEM & HARDWARE PERFORMANCE', topics: ['CPU Cache Lines & Cache Locality', 'Lock-Free Data Structures & CAS', 'B-Tree & LSM-Tree Memory Buffers', 'Bit Manipulation & Bitsets', 'Space-Efficient Bloom Filters', 'Garbage Collection & Memory Leaks', 'Week 8 Hardware & Concurrency Review'] },
+      { num: 'WEEK 09', title: 'FAANG CODING PATTERNS PART 1', topics: ['Top K Elements (Heap Pattern)', 'K-Way Merge Pattern', 'Subsets & Backtracking Permutations', 'Fast & Slow Pointer Cycle Problems', 'Two Heaps (Find Median from Stream)', 'Tree Depth First Search Patterns', 'Week 9 FAANG Coding Sprint'] },
+      { num: 'WEEK 10', title: 'FAANG CODING PATTERNS PART 2', topics: ['Interval Overlaps & Merging', 'Cyclic Sort Pattern', 'In-Place Reversal of LinkedList', 'Modified Binary Search Variations', 'Bitwise XOR Trick Problems', 'Sliding Window Advanced Variations', 'Week 10 FAANG Coding Sprint'] },
+      { num: 'WEEK 11', title: 'HARD CODING INTERVIEW CHALLENGES', topics: ['Trapping Rain Water & Histogram Max', 'Alien Dictionary Topological Sort', 'Word Ladder II Shortest Transformation', 'LRU & LFU Cache Design', 'Serialize & Deserialize Binary Trees', 'Regular Expression Matching DP', 'Week 11 Hard Level Review'] },
+      { num: 'WEEK 12', title: 'CAPSTONE INTERVIEW & MASTERY', topics: ['Timed 60-Min Full Coding Assessment 1', 'Timed 60-Min Full Coding Assessment 2', 'FAANG System & DSA Mock Interview 1', 'FAANG System & DSA Mock Interview 2', 'Personal Weakness Diagnostics', 'Career Readiness Score Finalization', 'Guidex Capstone Graduation Certificate'] }
     ]
   },
-  {
-    id: 2,
-    num: 'WEEK 02',
-    title: 'LINKED LISTS, STACKS & QUEUES',
-    status: 'Upcoming',
-    progress: 0,
-    duration: '7 Days',
-    whyMatters: 'Dynamic node allocation and LIFO/FIFO operational semantics.',
-    days: [
-      { day: 8, title: 'Day 8: Singly Linked List Implementation', desc: 'Node struct, pointers, head/tail insertion and deletion.', status: 'Upcoming', duration: '45 min', prompt: 'Explain Day 8: Singly Linked List Implementation.' },
-      { day: 9, title: 'Day 9: Reversing a Linked List & Fast/Slow Pointers', desc: 'Iterative 3-pointer reversal and Floyds cycle detection.', status: 'Upcoming', duration: '50 min', prompt: 'Explain Day 9: Reversing Linked Lists & Fast/Slow Pointers.' },
-      { day: 10, title: 'Day 10: Doubly Linked Lists & Sentinel Nodes', desc: 'Prev/Next pointers and dummy head nodes.', status: 'Upcoming', duration: '40 min', prompt: 'Explain Day 10: Doubly Linked Lists & Sentinel Nodes.' },
-      { day: 11, title: 'Day 11: Stack Data Structure & Call Stack', desc: 'LIFO principle, push/pop/peek operations in O(1).', status: 'Upcoming', duration: '45 min', prompt: 'Explain Day 11: Stack Data Structure & Call Stack.' },
-      { day: 12, title: 'Day 12: Monotonic Stack Pattern', desc: 'Next greater element in O(N) time complexity.', status: 'Upcoming', duration: '50 min', prompt: 'Explain Day 12: Monotonic Stack Pattern.' },
-      { day: 13, title: 'Day 13: Queue & Circular Queue', desc: 'FIFO principle and array-based circular queue.', status: 'Upcoming', duration: '45 min', prompt: 'Explain Day 13: Queue & Circular Queue Implementation.' },
-      { day: 14, title: 'Day 14: Week 2 Sprint — Valid Parentheses & Min-Stack', desc: 'Solve expression parsing and Min-Stack with O(1) getMin.', status: 'Upcoming', duration: '60 min', prompt: 'Provide a Week 2 Review for Linked Lists and Stacks.' }
+  'DATABASE': {
+    whyMatters: 'Relational data modeling, SQL indexing internals, ACID guarantees, and caching.',
+    weeks: [
+      { num: 'WEEK 01', title: 'RELATIONAL SQL & SCHEMA DESIGN', topics: ['SQL Data Types & Foreign Keys', 'INNER/LEFT/RIGHT JOIN Operations', 'Database Normalization (1NF to 3NF)', 'SQL Window Functions & OVER()', 'DDL vs DML & Foreign Key Cascades', 'Views, Materialized Views & Triggers', 'Week 1 SQL Query Sprint'] },
+      { num: 'WEEK 02', title: 'B-TREE INDEXING & EXPLAIN ANALYZE', topics: ['B-Tree Balanced Tree Architecture', 'PostgreSQL EXPLAIN ANALYZE Plans', 'Composite Indexes & Leftmost Match', 'Covering Indexes & Write Penalties', 'GIN & GiST Indexes for JSONB', 'Query Optimization 1.2s to 4ms', 'Week 2 Indexing Assessment'] },
+      { num: 'WEEK 03', title: 'TRANSACTIONS & ACID PROPERTIES', topics: ['ACID Properties Deep Dive', 'Concurrency Anomalies (Dirty/Phantom Reads)', 'Database Isolation Levels (Read Committed to Serializable)', 'Row-Level Locks & Deadlocks', 'MVCC (Multi-Version Concurrency)', 'WAL (Write-Ahead Logging)', 'Week 3 Transaction Sprint'] },
+      { num: 'WEEK 04', title: 'REDIS CACHING & SHARDING', topics: ['Redis In-Memory Data Structures', 'Cache-Aside & Write-Through Patterns', 'Redis Eviction Policies (LRU/LFU)', 'Primary-Replica Replication Lag', 'Database Sharding & Hash Partitioning', 'Database Architecture Summary', 'Week 4 Capstone Assessment'] },
+      { num: 'WEEK 05', title: 'ADVANCED SQL & CTE RECURSION', topics: ['Common Table Expressions (WITH CTE)', 'Recursive CTEs for Tree Structures', 'JSONB Querying & Indexing in Postgres', 'Full-Text Search & tsvector/tsquery', 'UPSERT (INSERT ON CONFLICT)', 'Partitioning Tables by Range/List', 'Week 5 Advanced SQL Review'] },
+      { num: 'WEEK 06', title: 'NOSQL & DOCUMENT DATABASES', topics: ['MongoDB Document Model vs SQL', 'BSON Types & Embedded Documents', 'MongoDB Aggregation Pipeline', 'Single-Field & Compound MongoDB Indexes', 'DynamoDB Partition & Sort Keys', 'Eventual Consistency in NoSQL', 'Week 6 NoSQL Architecture Review'] },
+      { num: 'WEEK 07', title: 'TIME-SERIES & VECTOR DATABASES', topics: ['Time-Series Databases (TimescaleDB)', 'Hypertables & Chunk Compression', 'Vector Embeddings & Cosine Similarity', 'pgvector & HNSW Indexing', 'Graph Databases (Neo4j / Cypher)', 'Spatial Queries & PostGIS', 'Week 7 Specialized DB Review'] },
+      { num: 'WEEK 08', title: 'DATABASE INTERNALS & STORAGE ENGINE', topics: ['Page Storage & Buffer Pool Manager', 'LSM-Trees vs B-Trees (RocksDB)', 'WAL Redo & Undo Logging Mechanics', 'Two-Phase Commit (2PC) Protocol', 'Database Connection Pooling (PgBouncer)', 'Zero-Downtime Migration Strategies', 'Week 8 DB Internals Review'] },
+      { num: 'WEEK 09', title: 'HIGH AVAILABILITY & DISASTER RECOVERY', topics: ['Multi-Region Database Replication', 'Failover Automation & Patroni', 'Point-In-Time Recovery (PITR)', 'Read Replica Load Balancing', 'Database Backup Compression', 'Data Loss RPO & RTO Metrics', 'Week 9 High Availability Sprint'] },
+      { num: 'WEEK 10', title: 'ANALYTICS & DATA WAREHOUSING', topics: ['OLTP vs OLAP Architecture', 'Columnar Storage Engines (ClickHouse)', 'Star Schema & Snowflake Schema', 'ETL Data Pipelines', 'Materialized View Auto-Refresh', 'BigQuery & Distributed Query Execution', 'Week 10 OLAP Sprint'] },
+      { num: 'WEEK 11', title: 'DATABASE SECURITY & COMPLIANCE', topics: ['Database Encryption at Rest (TDE)', 'SSL/TLS Encryption in Transit', 'Row-Level Security (RLS) Policies', 'SQL Injection Auditing & Prepared Statements', 'GDPR Data Anonymization', 'Database Role-Based Access Control', 'Week 11 Security Audit'] },
+      { num: 'WEEK 12', title: 'CAPSTONE INTERVIEW & DB MASTERY', topics: ['Database Tuning Challenge (1M rows)', 'High-Throughput E-Commerce Schema Design', 'Database Scalability Mock Interview 1', 'Database Scalability Mock Interview 2', 'Production Performance Review', 'Career Readiness Score Finalization', 'Guidex DB Capstone Certificate'] }
     ]
   },
-  {
-    id: 3,
-    num: 'WEEK 03',
-    title: 'TREES, BST & GRAPH TRAVERSALS',
-    status: 'Upcoming',
-    progress: 0,
-    duration: '7 Days',
-    whyMatters: 'Hierarchical and non-linear branching data structures.',
-    days: [
-      { day: 15, title: 'Day 15: Recursion & Call Stack Frames', desc: 'Base cases, recursive steps, stack unwinding.', status: 'Upcoming', duration: '45 min', prompt: 'Explain Day 15: Recursion & Call Stack Frames.' },
-      { day: 16, title: 'Day 16: Binary Tree Traversals (DFS)', desc: 'Pre-order, In-order, and Post-order DFS traversals.', status: 'Upcoming', duration: '50 min', prompt: 'Explain Day 16: Binary Tree DFS Traversals.' },
-      { day: 17, title: 'Day 17: Binary Search Tree (BST) Properties', desc: 'BST search invariant left < root < right.', status: 'Upcoming', duration: '45 min', prompt: 'Explain Day 17: Binary Search Tree Properties.' },
-      { day: 18, title: 'Day 18: Level-Order Traversal (BFS)', desc: 'Breadth-First Search using Queue.', status: 'Upcoming', duration: '50 min', prompt: 'Explain Day 18: Level-Order Traversal BFS.' },
-      { day: 19, title: 'Day 19: Graph Adjacency List vs Matrix', desc: 'Vertices, edges, directed vs undirected graphs.', status: 'Upcoming', duration: '45 min', prompt: 'Explain Day 19: Graph Adjacency Representation.' },
-      { day: 20, title: 'Day 20: Graph Traversal (DFS vs BFS)', desc: 'Visited set and queue/stack graph exploration.', status: 'Upcoming', duration: '55 min', prompt: 'Explain Day 20: Graph DFS vs BFS.' },
-      { day: 21, title: 'Day 21: Week 3 Tree & Graph Sprint', desc: 'Solve Max Depth and Invert Binary Tree.', status: 'Upcoming', duration: '60 min', prompt: 'Provide a Week 3 Tree & Graph Review.' }
+  'SYSTEM DESIGN': {
+    whyMatters: 'Scalable architecture, distributed consensus, microservices, and high availability.',
+    weeks: [
+      { num: 'WEEK 01', title: 'SCALABILITY & LOAD BALANCING', topics: ['Vertical vs Horizontal Scaling', 'Load Balancing Algorithms (Round-Robin/IP-Hash)', 'Layer 4 vs Layer 7 Load Balancers', 'Reverse Proxies & Nginx Configuration', 'Health Checks & Active/Passive Failover', 'CDN Edge Caching & PoP Routing', 'Week 1 Scalability Sprint'] },
+      { num: 'WEEK 02', title: 'DISTRIBUTED CACHING & RATE LIMITING', topics: ['Memcached vs Redis Cluster Architecture', 'Consistent Hashing Ring & Virtual Nodes', 'Token Bucket Rate Limiting Algorithm', 'Sliding Window Log Rate Limiter', 'API Gateway Security & Routing', 'Twitter Snowflake Distributed ID Generator', 'Week 2 Rate Limiter Sprint'] },
+      { num: 'WEEK 03', title: 'MESSAGE QUEUES & MICROSERVICES', topics: ['Asynchronous Messaging & Pub/Sub', 'Apache Kafka Architecture & Partitions', 'RabbitMQ vs Kafka Trade-Offs', 'Microservices Service Discovery', 'Circuit Breaker Pattern (Resilience)', 'Saga Pattern for Distributed Transactions', 'Week 3 Microservices Sprint'] },
+      { num: 'WEEK 04', title: 'DISTRIBUTED SYSTEMS & CAP THEOREM', topics: ['CAP Theorem In-Depth Trade-Offs', 'PACELC Theorem & Latency Rules', 'Eventual Consistency & Vector Clocks', 'Raft Consensus Protocol & Leader Election', '4-Step System Design Interview Framework', 'URL Shortener & Newsfeed Design', 'Week 4 Capstone System Design Mock'] },
+      { num: 'WEEK 05', title: 'DISTRIBUTED STORAGE & FILE SYSTEMS', topics: ['Google File System (GFS) & HDFS', 'Object Storage (AWS S3 Architecture)', 'Block Storage vs File Storage', 'Data Deduplication & Chunking', 'CDN Invalidation & Purge Protocols', 'Distributed File Locking', 'Week 5 Storage System Review'] },
+      { num: 'WEEK 06', title: 'SEARCH ENGINES & INVERTED INDEXES', topics: ['Elasticsearch & Inverted Index Design', 'Lucene Segment Files & Merging', 'TF-IDF & BM25 Relevance Scoring', 'Typeahead / Auto-Complete System', 'Web Crawler Architecture & Distributed Queue', 'Distributed Index Sharding', 'Week 6 Search System Review'] },
+      { num: 'WEEK 07', title: 'REAL-TIME & STREAMING SYSTEMS', topics: ['WebSockets vs Server-Sent Events (SSE)', 'Long Polling vs Short Polling', 'Chat Application Architecture (WhatsApp/Slack)', 'Live Video Streaming (HLS / WebRTC)', 'Distributed Metrics & Monitoring (Prometheus)', 'Log Aggregation Engine (ELK Stack)', 'Week 7 Streaming System Review'] },
+      { num: 'WEEK 08', title: 'LOCATION-BASED & GEOSPATIAL SYSTEMS', topics: ['Geohash & Quadtree Spatial Indexing', 'Uber Proximity Matching System', 'Google Maps Route Calculation', 'Distributed Lock Manager (Redlock)', 'Distributed Rate Limiting at Scale', 'Distributed Counter (Top K Songs)', 'Week 8 Location System Review'] },
+      { num: 'WEEK 09', title: 'HIGH-THROUGHPUT SYSTEM ARCHITECTURES', topics: ['Design Distributed Web Crawler', 'Design Distributed Notification Service', 'Design Video Platform (YouTube)', 'Design Payment Gateway Engine', 'Design Collaborative Editor (Figma/Docs)', 'Design Distributed Key-Value Store', 'Week 9 Architecture Sprint 1'] },
+      { num: 'WEEK 10', title: 'ENTERPRISE SYSTEM ARCHITECTURES', topics: ['Design E-Commerce Flash Sale Platform', 'Design Distributed Ticket Booking (BookMyShow)', 'Design Distributed Logging Service', 'Design Social Media Feed (Twitter/X)', 'Design Cloud Drive (Dropbox)', 'Design Metrics & Alerting Platform', 'Week 10 Architecture Sprint 2'] },
+      { num: 'WEEK 11', title: 'SYSTEM SECURITY & ZERO TRUST', topics: ['Zero Trust Network Architecture (ZTNA)', 'mTLS Inter-Service Encryption', 'DDoS Protection & Scrubbing Centers', 'API Rate Limits & WAF Rules', 'Distributed Tracing (Jaeger / OpenTelemetry)', 'Disaster Recovery & Chaos Engineering', 'Week 11 Security & Chaos Sprint'] },
+      { num: 'WEEK 12', title: 'CAPSTONE FAANG SYSTEM DESIGN MOCK', topics: ['Timed 45-Min System Design Mock 1', 'Timed 45-Min System Design Mock 2', 'Architecture Diagramming Review', 'Trade-off Justification Defense', 'FAANG Mock Interview Evaluation', 'Career Readiness Score Finalization', 'Guidex System Design Capstone Certificate'] }
     ]
   },
-  {
-    id: 4,
-    num: 'WEEK 04',
-    title: 'HEAPS, SORTING & DYNAMIC PROGRAMMING',
-    status: 'Upcoming',
-    progress: 0,
-    duration: '7 Days',
-    whyMatters: 'Algorithmic optimization, priority queues, and memoization.',
-    days: [
-      { day: 22, title: 'Day 22: Hash Tables & Collision Resolution', desc: 'Hash functions, chaining, and linear probing.', status: 'Upcoming', duration: '45 min', prompt: 'Explain Day 22: Hash Tables & Collision Resolution.' },
-      { day: 23, title: 'Day 23: Binary Heap & Priority Queue', desc: 'Complete binary tree array, heapify up/down.', status: 'Upcoming', duration: '50 min', prompt: 'Explain Day 23: Binary Heap & Priority Queue.' },
-      { day: 24, title: 'Day 24: Sorting Algorithms (Merge vs Quick Sort)', desc: 'Divide-and-conquer O(N log N) proofs.', status: 'Upcoming', duration: '50 min', prompt: 'Explain Day 24: Divide-and-Conquer Sorting.' },
-      { day: 25, title: 'Day 25: Intro to Dynamic Programming', desc: 'Overlapping subproblems and top-down memoization.', status: 'Upcoming', duration: '50 min', prompt: 'Explain Day 25: Intro to Dynamic Programming Memoization.' },
-      { day: 26, title: 'Day 26: Bottom-Up DP Tabulation', desc: 'Iterative DP tables and space reduction.', status: 'Upcoming', duration: '45 min', prompt: 'Explain Day 26: Bottom-Up DP Tabulation.' },
-      { day: 27, title: 'Day 27: Full DSA Comprehensive Review', desc: 'Big-O time and space complexity summary.', status: 'Upcoming', duration: '60 min', prompt: 'Provide a complete DSA Big-O Cheat Sheet.' },
-      { day: 28, title: 'Day 28: Capstone Assessment & Mock Interview', desc: 'Solve 2 timed interview problems.', status: 'Upcoming', duration: '75 min', prompt: 'Conduct a Final Capstone Mock Interview for Data Structures.' }
+  'AUTHENTICATION': {
+    whyMatters: 'Web security, stateless JWTs, OAuth 2.0, RBAC, and threat mitigation.',
+    weeks: [
+      { num: 'WEEK 01', title: 'HTTP BASICS, SESSIONS & HASHING', topics: ['HTTP Basic Auth & Header Risks', 'Stateful Cookie Sessions & Flags', 'Password Salting & Bcrypt Cost Factor', 'Argon2 vs PBKDF2 Hashing', 'Redis Session Storage & Expiration', 'Password Reset Token Flow', 'Week 1 Auth Sprint'] },
+      { num: 'WEEK 02', title: 'JWT TOKENS & REFRESH ROTATION', topics: ['JWT Structure (Header.Payload.Signature)', 'Express Token Verification Middleware', 'Short-Lived Access vs Long-Lived Refresh', 'Refresh Token Rotation & Theft Detection', 'LocalStorage vs HttpOnly Cookie Storage', 'JWT Blacklisting with Redis', 'Week 2 JWT Sprint'] },
+      { num: 'WEEK 03', title: 'OAUTH 2.0 & OPENID CONNECT', topics: ['OAuth 2.0 Roles & Grant Types', 'Authorization Code Flow with PKCE', 'OpenID Connect (OIDC) & ID Tokens', 'Implementing Google & GitHub Login', 'Single Sign-On (SSO) & SAML 2.0', 'Two-Factor Authentication (TOTP / 2FA)', 'Week 3 OAuth Sprint'] },
+      { num: 'WEEK 04', title: 'AUTHORIZATION & SECURITY DEFENSES', topics: ['Role-Based Access Control (RBAC)', 'Attribute-Based Access Control (ABAC)', 'XSS Attacks & Content Security Policy', 'CSRF Attacks & Double Submit Cookies', 'SQL Injection & Parameterized Queries', 'Full Web API Security Audit', 'Week 4 Capstone Auth Mock'] },
+      { num: 'WEEK 05', title: 'ADVANCED CRYPTOGRAPHY & PKI', topics: ['Symmetric vs Asymmetric Encryption (AES/RSA)', 'Public Key Infrastructure (PKI) & TLS', 'Diffie-Hellman Key Exchange', 'Digital Signatures & Elliptic Curve (ECC)', 'Hardware Security Modules (HSM) & KMS', 'Zero-Knowledge Proofs (ZKP) Basics', 'Week 5 Cryptography Sprint'] },
+      { num: 'WEEK 06', title: 'API SECURITY & OAUTH 2.0 EXTENSIONS', topics: ['OAuth 2.0 Token Introspection & Revocation', 'Mutual TLS (mTLS) for API Security', 'API Key Management & Rotation', 'OAuth 2.0 Scopes & Granular Permissions', 'OpenID Connect Dynamic Client Registration', 'OAuth Vulnerabilities & Threat Model', 'Week 6 Advanced API Security'] },
+      { num: 'WEEK 07', title: 'IDENTITY FEDERATION & ENTERPRISE AUTH', topics: ['Enterprise SAML 2.0 Service Provider (SP)', 'WS-Federation & Active Directory (ADFS)', 'SCIM Protocol for User Provisioning', 'Multi-Tenant Authentication Architecture', 'Cross-Domain Single Sign-On (SSO)', 'Okta & Auth0 Integration Patterns', 'Week 7 Enterprise Auth Review'] },
+      { num: 'WEEK 08', title: 'PASSKEY & BIOMETRIC AUTHENTICATION', topics: ['WebAuthn API & FIDO2 Standard', 'Public-Key Passkeys without Passwords', 'Biometric Authentication (FaceID/TouchID)', 'Hardware Tokens (YubiKey / Security Keys)', 'Device Fingerprinting & Risk Scoring', 'Step-Up Adaptive Authentication', 'Week 8 Passkey Architecture Review'] },
+      { num: 'WEEK 09', title: 'SESSION HYJACKING & ADVANCED THREATS', topics: ['Session Fixation & Hijacking Mitigation', 'Man-In-The-Middle (MITM) & Certificate Pinning', 'Credential Stuffing & Rate Limiting Shields', 'Brute-Force Account Lockout Strategies', 'Security Headers (HSTS, X-Frame, CORS)', 'API Gateway Security Shielding', 'Week 9 Threat Mitigation Sprint'] },
+      { num: 'WEEK 10', title: 'ZERO TRUST SECURITY & MICROSERVICES', topics: ['Zero Trust Microservices Authentication', 'SPIFFE / SPIRE Identity Attestation', 'Service-to-Service JWT Verification', 'Centralized Policy Enforcement (OPA)', 'Security Event Logging & SIEM Integration', 'Intrusion Detection System (IDS) Alerts', 'Week 10 Zero Trust Sprint'] },
+      { num: 'WEEK 11', title: 'PENETRATION TESTING & SECURITY AUDIT', topics: ['OWASP Top 10 Security Audit Checklist', 'Burp Suite API Penetration Testing', 'Automated Static Application Security Testing (SAST)', 'Dynamic Security Testing (DAST)', 'Vulnerability Disclosure & CVE Scoring', 'Compliance (SOC 2, ISO 27001, HIPAA)', 'Week 11 Pen Testing Sprint'] },
+      { num: 'WEEK 12', title: 'CAPSTONE INTERVIEW & AUTH MASTERY', topics: ['Design Auth Architecture for 10M Users', 'Enterprise Identity Engine Challenge', 'Auth Security Mock Interview 1', 'Auth Security Mock Interview 2', 'Security Architecture Defense', 'Career Readiness Score Finalization', 'Guidex Auth Capstone Certificate'] }
     ]
   }
-];
+};
 
+/**
+ * DYNAMIC MULTI-WEEK CURRICULUM GENERATOR
+ * Generates personalized 4-Week (28 Days), 8-Week (56 Days), or 12-Week (84 Days) schedules
+ * for ALL 4 Core Domains and ALL 3 Experience Levels!
+ */
+export const generatePersonalizedRoadmap = (goalName, timelineWeeks = 4, level = 'Basic / Beginner') => {
+  const g = (goalName || 'DATA STRUCTURES').toUpperCase();
+  let domainKey = 'DATA STRUCTURES';
+  if (g.includes('DATABASE') || g.includes('DB')) domainKey = 'DATABASE';
+  if (g.includes('SYSTEM') || g.includes('SYS')) domainKey = 'SYSTEM DESIGN';
+  if (g.includes('AUTH') || g.includes('AUTHENTICATION')) domainKey = 'AUTHENTICATION';
+
+  const template = CURRICULUM_TEMPLATES[domainKey] || CURRICULUM_TEMPLATES['DATA STRUCTURES'];
+  
+  // Clean duration (4, 8, or 12 weeks)
+  let numWeeks = 4;
+  if (String(timelineWeeks).includes('8')) numWeeks = 8;
+  if (String(timelineWeeks).includes('12')) numWeeks = 12;
+
+  const generatedWeeks = [];
+  let absoluteDayCounter = 1;
+
+  for (let w = 0; w < numWeeks; w++) {
+    const weekTpl = template.weeks[w] || template.weeks[w % template.weeks.length];
+    const isWeek1 = w === 0;
+
+    const days = weekTpl.topics.map((topic, topicIdx) => {
+      const dayNum = absoluteDayCounter++;
+      const isCompleted = dayNum < 3;
+      const isCurrent = dayNum === 3;
+      const isUpcoming = dayNum > 3;
+
+      let status = 'Upcoming';
+      if (isCompleted) status = 'Completed';
+      if (isCurrent) status = 'In Progress';
+
+      // Duration & Prompt adjusted per level
+      let durationStr = '45 min';
+      if (level.includes('Advanced')) durationStr = '60 min';
+      if (level.includes('Intermediate')) durationStr = '50 min';
+
+      return {
+        day: dayNum,
+        title: `Day ${dayNum}: ${topic}`,
+        desc: `Learn & implement ${topic} tailored for ${level} level.`,
+        status,
+        current: isCurrent,
+        duration: durationStr,
+        prompt: `Explain Day ${dayNum} of ${domainKey}: ${topic} for a student at ${level} level. Give code examples and key concepts.`
+      };
+    });
+
+    generatedWeeks.push({
+      id: w + 1,
+      num: weekTpl.num,
+      title: weekTpl.title,
+      status: isWeek1 ? 'In Progress' : 'Upcoming',
+      current: isWeek1,
+      progress: isWeek1 ? 42 : 0,
+      duration: '7 Days',
+      whyMatters: template.whyMatters,
+      days
+    });
+  }
+
+  return generatedWeeks;
+};
+
+export const DSA_ROADMAP = generatePersonalizedRoadmap('DATA STRUCTURES', 4, 'Basic / Beginner');
+export const DB_ROADMAP = generatePersonalizedRoadmap('DATABASE', 4, 'Basic / Beginner');
+export const SYS_ROADMAP = generatePersonalizedRoadmap('SYSTEM DESIGN', 4, 'Basic / Beginner');
+export const AUTH_ROADMAP = generatePersonalizedRoadmap('AUTHENTICATION', 4, 'Basic / Beginner');
 export const PHASES = DSA_ROADMAP;
 
-/* ── 2. DATABASE ROADMAP ── */
-export const DB_ROADMAP = [
-  {
-    id: 1,
-    num: 'WEEK 01',
-    title: 'RELATIONAL SQL & SCHEMA DESIGN',
-    status: 'In Progress',
-    current: true,
-    progress: 50,
-    duration: '7 Days',
-    whyMatters: 'Relational data modeling, normal forms, and JOIN performance.',
-    days: [
-      { day: 1, title: 'Day 1: SQL Data Types & Relational Models', desc: 'Tables, Primary Keys, Foreign Keys, 1:N and N:M relationships.', status: 'Completed', duration: '40 min', prompt: 'Explain Day 1 of Database: Relational Schema Modeling & Foreign Keys.' },
-      { day: 2, title: 'Day 2: Advanced JOINs & Aggregations', desc: 'INNER, LEFT, RIGHT, FULL OUTER JOINs, GROUP BY, HAVING.', status: 'In Progress', current: true, duration: '45 min', prompt: 'Explain Day 2 of Database: JOIN Operations & Aggregations.' },
-      { day: 3, title: 'Day 3: Normalization (1NF, 2NF, 3NF, BCNF)', desc: 'Eliminating data redundancy and update anomalies.', status: 'Upcoming', duration: '45 min', prompt: 'Explain Day 3 of Database: Database Normal Forms (1NF-3NF).' },
-      { day: 4, title: 'Day 4: Subqueries & Window Functions', desc: 'OVER(), PARTITION BY, ROW_NUMBER(), DENSE_RANK().', status: 'Upcoming', duration: '50 min', prompt: 'Explain Day 4 of Database: SQL Window Functions & Partitioning.' },
-      { day: 5, title: 'Day 5: DDL vs DML & Foreign Key Cascades', desc: 'ALTER, DROP, TRUNCATE vs CASCADE actions.', status: 'Upcoming', duration: '40 min', prompt: 'Explain Day 5 of Database: DDL vs DML and Foreign Key Cascades.' },
-      { day: 6, title: 'Day 6: Views, Materialized Views & Triggers', desc: 'Pre-computed query views and automated database triggers.', status: 'Upcoming', duration: '50 min', prompt: 'Explain Day 6 of Database: Materialized Views vs Dynamic Views.' },
-      { day: 7, title: 'Day 7: Week 1 SQL Problem Sprint', desc: 'Solve 3 complex multi-table SQL queries.', status: 'Upcoming', duration: '60 min', prompt: 'Provide a Week 1 Review for Database: Relational SQL Queries.' }
-    ]
-  },
-  {
-    id: 2,
-    num: 'WEEK 02',
-    title: 'B-TREE INDEXING & EXPLAIN ANALYZE',
-    status: 'Upcoming',
-    progress: 0,
-    duration: '7 Days',
-    whyMatters: 'Database indexing internals and execution plan profiling.',
-    days: [
-      { day: 8, title: 'Day 8: B-Tree Index Architecture', desc: 'B-Tree balanced tree structure, O(log N) lookup.', status: 'Upcoming', duration: '45 min', prompt: 'Explain Day 8: B-Tree Index Structure and Leaf Nodes.' },
-      { day: 9, title: 'Day 9: PostgreSQL EXPLAIN ANALYZE', desc: 'Sequential Scan vs Index Scan vs Index Only Scan.', status: 'Upcoming', duration: '50 min', prompt: 'Explain Day 9: PostgreSQL EXPLAIN ANALYZE Execution Plans.' },
-      { day: 10, title: 'Day 10: Composite Indexes & Leftmost Prefix Rule', desc: 'Indexing multiple columns and query matching rules.', status: 'Upcoming', duration: '45 min', prompt: 'Explain Day 10: Composite Indexes and Leftmost Column Match.' },
-      { day: 11, title: 'Day 11: Covering Indexes & Index Overheads', desc: 'INCLUDE clause, index write penalty during INSERT/UPDATE.', status: 'Upcoming', duration: '45 min', prompt: 'Explain Day 11: Covering Indexes & Write Penalties.' },
-      { day: 12, title: 'Day 12: Hash Indexes, GIN & GiST Overview', desc: 'Specialized indexes for JSONB and Full-Text Search.', status: 'Upcoming', duration: '50 min', prompt: 'Explain Day 12: GIN and GiST Indexes for JSONB and Search.' },
-      { day: 13, title: 'Day 13: Query Optimization Sprint', desc: 'Optimize a slow query from 1.2s to 4ms using indexes.', status: 'Upcoming', duration: '50 min', prompt: 'Explain Day 13: Query Optimization Walkthrough from 1.2s to 4ms.' },
-      { day: 14, title: 'Day 14: Week 2 Indexing Assessment', desc: 'Profile 3 slow queries and recommend index strategies.', status: 'Upcoming', duration: '60 min', prompt: 'Provide a Week 2 Review for Database Indexing & Profiling.' }
-    ]
-  },
-  {
-    id: 3,
-    num: 'WEEK 03',
-    title: 'TRANSACTIONS & ACID PROPERTIES',
-    status: 'Upcoming',
-    progress: 0,
-    duration: '7 Days',
-    whyMatters: 'Concurrency control, locking, and data integrity guarantees.',
-    days: [
-      { day: 15, title: 'Day 15: ACID Properties Explained', desc: 'Atomicity, Consistency, Isolation, Durability.', status: 'Upcoming', duration: '45 min', prompt: 'Explain Day 15: ACID Properties in Databases.' },
-      { day: 16, title: 'Day 16: Concurrency Anomalies', desc: 'Dirty Reads, Non-Repeatable Reads, Phantom Reads.', status: 'Upcoming', duration: '50 min', prompt: 'Explain Day 16: Database Concurrency Anomalies.' },
-      { day: 17, title: 'Day 17: Isolation Levels (Read Committed to Serializable)', desc: 'Read Uncommitted, Read Committed, Repeatable Read, Serializable.', status: 'Upcoming', duration: '50 min', prompt: 'Explain Day 17: Database Isolation Levels.' },
-      { day: 18, title: 'Day 18: Row-Level Locking & Deadlocks', desc: 'SELECT FOR UPDATE, shared vs exclusive locks, deadlock detection.', status: 'Upcoming', duration: '45 min', prompt: 'Explain Day 18: Row-Level Locking & Deadlocks.' },
-      { day: 19, title: 'Day 19: MVCC (Multi-Version Concurrency Control)', desc: 'Postgres tuple versioning and VACUUM processing.', status: 'Upcoming', duration: '50 min', prompt: 'Explain Day 19: Multi-Version Concurrency Control (MVCC).' },
-      { day: 20, title: 'Day 20: WAL (Write-Ahead Logging)', desc: 'Redo logs, checkpointing, crash recovery durability.', status: 'Upcoming', duration: '45 min', prompt: 'Explain Day 20: Write-Ahead Logging & Crash Recovery.' },
-      { day: 21, title: 'Day 21: Week 3 Transaction Sprint', desc: 'Simulate high-concurrency bank transfer transaction.', status: 'Upcoming', duration: '60 min', prompt: 'Provide a Week 3 Transaction & ACID Review.' }
-    ]
-  },
-  {
-    id: 4,
-    num: 'WEEK 04',
-    title: 'REDIS CACHING, SHARDING & REPLICATION',
-    status: 'Upcoming',
-    progress: 0,
-    duration: '7 Days',
-    whyMatters: 'Scaling read/write performance with in-memory caching and horizontal partitioning.',
-    days: [
-      { day: 22, title: 'Day 22: Redis In-Memory Data Structures', desc: 'Strings, Hashes, Lists, Sets, Sorted Sets (ZSET).', status: 'Upcoming', duration: '45 min', prompt: 'Explain Day 22: Redis In-Memory Data Structures.' },
-      { day: 23, title: 'Day 23: Cache-Aside & Write-Through Patterns', desc: 'Cache invalidation, TTL expiration, cache stampede.', status: 'Upcoming', duration: '50 min', prompt: 'Explain Day 23: Cache-Aside and Write-Through Caching.' },
-      { day: 24, title: 'Day 24: Redis Eviction Policies (LRU vs LFU)', desc: 'Volatile-LRU, allkeys-LRU, memory limits.', status: 'Upcoming', duration: '45 min', prompt: 'Explain Day 24: Redis Eviction Policies (LRU vs LFU).' },
-      { day: 25, title: 'Day 25: Primary-Replica Replication', desc: 'Read replicas, asynchronous replication lag.', status: 'Upcoming', duration: '50 min', prompt: 'Explain Day 25: Primary-Replica Replication.' },
-      { day: 26, title: 'Day 26: Database Sharding & Hash Partitioning', desc: 'Shard keys, range vs hash partitioning, cross-shard queries.', status: 'Upcoming', duration: '50 min', prompt: 'Explain Day 26: Database Sharding & Partitioning.' },
-      { day: 27, title: 'Day 27: Database Architecture Review', desc: 'Complete SQL, Indexing, ACID, and Caching summary.', status: 'Upcoming', duration: '60 min', prompt: 'Provide a complete Database Architecture Summary.' },
-      { day: 28, title: 'Day 28: Capstone Assessment & Mock Interview', desc: 'Design a high-throughput database schema & indexing strategy.', status: 'Upcoming', duration: '75 min', prompt: 'Conduct a Final Database Engineering Capstone Interview.' }
-    ]
-  }
-];
-
-/* ── 3. SYSTEM DESIGN ROADMAP ── */
-export const SYS_ROADMAP = [
-  {
-    id: 1,
-    num: 'WEEK 01',
-    title: 'SCALABILITY & LOAD BALANCING',
-    status: 'In Progress',
-    current: true,
-    progress: 30,
-    duration: '7 Days',
-    whyMatters: 'Handling traffic growth through horizontal scaling and traffic distribution.',
-    days: [
-      { day: 1, title: 'Day 1: Vertical vs Horizontal Scaling', desc: 'Stateless application servers, bottleneck analysis.', status: 'Completed', duration: '40 min', prompt: 'Explain Day 1 of System Design: Vertical vs Horizontal Scaling.' },
-      { day: 2, title: 'Day 2: Load Balancing Algorithms', desc: 'Round-Robin, Least Connections, IP-Hash, Weighted.', status: 'In Progress', current: true, duration: '45 min', prompt: 'Explain Day 2 of System Design: Load Balancing Algorithms.' },
-      { day: 3, title: 'Day 3: Layer 4 vs Layer 7 Load Balancers', desc: 'TCP/IP vs HTTP/HTTPS routing, SSL termination.', status: 'Upcoming', duration: '45 min', prompt: 'Explain Day 3 of System Design: Layer 4 vs Layer 7 Load Balancing.' },
-      { day: 4, title: 'Day 4: Reverse Proxies (Nginx / HAProxy)', desc: 'Request routing, compression, security buffering.', status: 'Upcoming', duration: '50 min', prompt: 'Explain Day 4 of System Design: Reverse Proxies & Nginx.' },
-      { day: 5, title: 'Day 5: Health Checks & Failover', desc: 'Active/passive load balancing, heartbeats, DNS failover.', status: 'Upcoming', duration: '40 min', prompt: 'Explain Day 5 of System Design: Health Checks & Failover.' },
-      { day: 6, title: 'Day 6: CDN (Content Delivery Network)', desc: 'Edge caching, static assets, PoP routing.', status: 'Upcoming', duration: '50 min', prompt: 'Explain Day 6 of System Design: Content Delivery Networks.' },
-      { day: 7, title: 'Day 7: Week 1 Scalability Sprint', desc: 'Design a web app serving 100k daily active users.', status: 'Upcoming', duration: '60 min', prompt: 'Provide a Week 1 Scalability System Design Review.' }
-    ]
-  },
-  {
-    id: 2,
-    num: 'WEEK 02',
-    title: 'DISTRIBUTED CACHING & RATE LIMITING',
-    status: 'Upcoming',
-    progress: 0,
-    duration: '7 Days',
-    whyMatters: 'Sub-millisecond data retrieval and API protection.',
-    days: [
-      { day: 8, title: 'Day 8: Distributed Caching Architecture', desc: 'Memcached vs Redis cluster, cache consistency.', status: 'Upcoming', duration: '45 min', prompt: 'Explain Day 8: Distributed Caching Architecture.' },
-      { day: 9, title: 'Day 9: Consistent Hashing Pattern', desc: 'Hash ring, virtual nodes, node addition without total remapping.', status: 'Upcoming', duration: '50 min', prompt: 'Explain Day 9: Consistent Hashing in System Design.' },
-      { day: 10, title: 'Day 10: Token Bucket Rate Limiting', desc: 'Bucket capacity, refill rate, bursting protection.', status: 'Upcoming', duration: '45 min', prompt: 'Explain Day 10: Token Bucket Rate Limiting Algorithm.' },
-      { day: 11, title: 'Day 11: Sliding Window Log Rate Limiter', desc: 'Accurate rate limiting using Redis sorted sets.', status: 'Upcoming', duration: '50 min', prompt: 'Explain Day 11: Sliding Window Log Rate Limiting.' },
-      { day: 12, title: 'Day 12: API Gateway Pattern', desc: 'Authentication, rate limiting, logging, routing.', status: 'Upcoming', duration: '45 min', prompt: 'Explain Day 12: API Gateway Architecture.' },
-      { day: 13, title: 'Day 13: Distributed ID Generator (Snowflake)', desc: '64-bit unique IDs: timestamp + datacenter + worker + sequence.', status: 'Upcoming', duration: '50 min', prompt: 'Explain Day 13: Twitter Snowflake Distributed ID Generator.' },
-      { day: 14, title: 'Day 14: Week 2 Caching & Rate Limiter Sprint', desc: 'Design a distributed rate-limiting API service.', status: 'Upcoming', duration: '60 min', prompt: 'Provide a Week 2 System Design Review.' }
-    ]
-  },
-  {
-    id: 3,
-    num: 'WEEK 03',
-    title: 'MESSAGE QUEUES & MICROSERVICES',
-    status: 'Upcoming',
-    progress: 0,
-    duration: '7 Days',
-    whyMatters: 'Asynchronous event-driven architecture and decoupled services.',
-    days: [
-      { day: 15, title: 'Day 15: Asynchronous Processing & Pub/Sub', desc: 'Message queues, producer/consumer, push vs pull.', status: 'Upcoming', duration: '45 min', prompt: 'Explain Day 15: Asynchronous Messaging & Pub/Sub.' },
-      { day: 16, title: 'Day 16: Apache Kafka Architecture', desc: 'Topics, partitions, consumer groups, offset management.', status: 'Upcoming', duration: '50 min', prompt: 'Explain Day 16: Apache Kafka Architecture.' },
-      { day: 17, title: 'Day 17: RabbitMQ vs Kafka Trade-offs', desc: 'AMQP routing keys vs distributed commit log.', status: 'Upcoming', duration: '45 min', prompt: 'Explain Day 17: RabbitMQ vs Kafka Comparison.' },
-      { day: 18, title: 'Day 18: Microservices Service Discovery', desc: 'Consul, Eureka, Client-side vs Server-side discovery.', status: 'Upcoming', duration: '45 min', prompt: 'Explain Day 18: Microservices Service Discovery.' },
-      { day: 19, title: 'Day 19: Circuit Breaker Pattern (Resilience)', desc: 'Closed, Open, Half-Open states, fallback logic.', status: 'Upcoming', duration: '50 min', prompt: 'Explain Day 19: Circuit Breaker Pattern in Microservices.' },
-      { day: 20, title: 'Day 20: Saga Pattern for Distributed Transactions', desc: 'Choreography vs Orchestration compensations.', status: 'Upcoming', duration: '55 min', prompt: 'Explain Day 20: Saga Pattern for Distributed Transactions.' },
-      { day: 21, title: 'Day 21: Week 3 Messaging Sprint', desc: 'Design an event-driven notification engine.', status: 'Upcoming', duration: '60 min', prompt: 'Provide a Week 3 Microservices & Messaging Review.' }
-    ]
-  },
-  {
-    id: 4,
-    num: 'WEEK 04',
-    title: 'DISTRIBUTED SYSTEMS & CAP THEOREM',
-    status: 'Upcoming',
-    progress: 0,
-    duration: '7 Days',
-    whyMatters: 'Theoretical foundations of distributed data and consensus.',
-    days: [
-      { day: 22, title: 'Day 22: CAP Theorem In-Depth', desc: 'Consistency, Availability, Partition Tolerance trade-offs.', status: 'Upcoming', duration: '45 min', prompt: 'Explain Day 22: CAP Theorem Trade-offs.' },
-      { day: 23, title: 'Day 23: PACELC Theorem', desc: 'Latency vs Consistency under non-partitioned state.', status: 'Upcoming', duration: '45 min', prompt: 'Explain Day 23: PACELC Theorem.' },
-      { day: 24, title: 'Day 24: Eventual Consistency & Vector Clocks', desc: 'Read repair, hint handoff, version vectors.', status: 'Upcoming', duration: '50 min', prompt: 'Explain Day 24: Eventual Consistency & Vector Clocks.' },
-      { day: 25, title: 'Day 25: Distributed Consensus (Raft / Paxos)', desc: 'Leader election, log replication, quorum.', status: 'Upcoming', duration: '50 min', prompt: 'Explain Day 25: Raft Consensus Protocol.' },
-      { day: 26, title: 'Day 26: Complete System Design Interview Framework', desc: '4-Step System Design Interview template.', status: 'Upcoming', duration: '60 min', prompt: 'Explain the 4-Step System Design Interview Template.' },
-      { day: 27, title: 'Day 27: Full System Design Review', desc: 'Review URL Shortener, Newsfeed & Video Streaming.', status: 'Upcoming', duration: '60 min', prompt: 'Provide a System Design Interview Cheat Sheet.' },
-      { day: 28, title: 'Day 28: Capstone Assessment & System Design Mock', desc: 'Design YouTube or Uber backend system.', status: 'Upcoming', duration: '75 min', prompt: 'Conduct a Final System Design Mock Interview for YouTube/Uber.' }
-    ]
-  }
-];
-
-/* ── 4. AUTHENTICATION ROADMAP ── */
-export const AUTH_ROADMAP = [
-  {
-    id: 1,
-    num: 'WEEK 01',
-    title: 'HTTP BASICS, SESSIONS & PASSWORD HASHING',
-    status: 'In Progress',
-    current: true,
-    progress: 40,
-    duration: '7 Days',
-    whyMatters: 'Foundational web security, stateful session management, and credential storage.',
-    days: [
-      { day: 1, title: 'Day 1: HTTP Authentication Headers & Basic Auth', desc: 'Authorization header, Base64 encoding security risks.', status: 'Completed', duration: '40 min', prompt: 'Explain Day 1 of Authentication: HTTP Basic Auth & Headers.' },
-      { day: 2, title: 'Day 2: Stateful Cookie Sessions', desc: 'Set-Cookie header, HttpOnly, Secure, SameSite flags.', status: 'In Progress', current: true, duration: '45 min', prompt: 'Explain Day 2 of Authentication: Stateful Cookie Sessions & Flags.' },
-      { day: 3, title: 'Day 3: Password Hashing & Salting (Bcrypt)', desc: 'Rainbow tables, salt generation, Bcrypt cost factor.', status: 'Upcoming', duration: '45 min', prompt: 'Explain Day 3 of Authentication: Password Salting & Bcrypt.' },
-      { day: 4, title: 'Day 4: Argon2 vs PBKDF2 Password Storage', desc: 'Memory-hard hashing algorithms against GPU cracking.', status: 'Upcoming', duration: '45 min', prompt: 'Explain Day 4 of Authentication: Argon2 vs PBKDF2.' },
-      { day: 5, title: 'Day 5: Session Storage (Memory vs Redis)', desc: 'Store session IDs in Redis with automatic TTL expiration.', status: 'Upcoming', duration: '45 min', prompt: 'Explain Day 5 of Authentication: Redis Session Storage.' },
-      { day: 6, title: 'Day 6: Password Reset Token Security', desc: 'Cryptographically secure random tokens, expiry timers.', status: 'Upcoming', duration: '45 min', prompt: 'Explain Day 6 of Authentication: Password Reset Token Flows.' },
-      { day: 7, title: 'Day 7: Week 1 Auth Sprint', desc: 'Implement secure login and signup API endpoints.', status: 'Upcoming', duration: '60 min', prompt: 'Provide a Week 1 Authentication Security Review.' }
-    ]
-  },
-  {
-    id: 2,
-    num: 'WEEK 02',
-    title: 'JWT TOKENS & REFRESH TOKEN ROTATION',
-    status: 'Upcoming',
-    progress: 0,
-    duration: '7 Days',
-    whyMatters: 'Stateless authentication tokens and token revocation techniques.',
-    days: [
-      { day: 8, title: 'Day 8: JWT Architecture (Header.Payload.Signature)', desc: 'Base64Url encoding, HMAC-SHA256 signing.', status: 'Upcoming', duration: '45 min', prompt: 'Explain Day 8: JWT Token Structure & Signatures.' },
-      { day: 9, title: 'Day 9: Stateless Token Verification Middleware', desc: 'Verifying JWT signatures in Express/FastAPI middleware.', status: 'Upcoming', duration: '45 min', prompt: 'Explain Day 9: JWT Verification Middleware.' },
-      { day: 10, title: 'Day 10: Access Token vs Refresh Token', desc: 'Short-lived access tokens (15m) vs long-lived refresh tokens.', status: 'Upcoming', duration: '45 min', prompt: 'Explain Day 10: Access Tokens vs Refresh Tokens.' },
-      { day: 11, title: 'Day 11: Refresh Token Rotation & Theft Detection', desc: 'Automatic revocation upon reuse detection.', status: 'Upcoming', duration: '50 min', prompt: 'Explain Day 11: Refresh Token Rotation & Theft Detection.' },
-      { day: 12, title: 'Day 12: Storing Tokens (LocalStorage vs HttpOnly Cookie)', desc: 'Evaluating XSS vs CSRF vulnerabilities.', status: 'Upcoming', duration: '50 min', prompt: 'Explain Day 12: Storing Tokens: LocalStorage vs HttpOnly Cookies.' },
-      { day: 13, title: 'Day 13: JWT Blacklisting & Revocation', desc: 'Using Redis for token blacklist on logout.', status: 'Upcoming', duration: '45 min', prompt: 'Explain Day 13: JWT Blacklisting with Redis.' },
-      { day: 14, title: 'Day 14: Week 2 JWT Sprint', desc: 'Build a production-ready JWT Auth system with refresh rotation.', status: 'Upcoming', duration: '60 min', prompt: 'Provide a Week 2 JWT Authentication Review.' }
-    ]
-  },
-  {
-    id: 3,
-    num: 'WEEK 03',
-    title: 'OAUTH 2.0 & OPENID CONNECT (OIDC)',
-    status: 'Upcoming',
-    progress: 0,
-    duration: '7 Days',
-    whyMatters: 'Third-party authorization (Google, GitHub login) and identity verification.',
-    days: [
-      { day: 15, title: 'Day 15: OAuth 2.0 Core Roles & Grant Types', desc: 'Resource Owner, Client, Authorization Server, Resource Server.', status: 'Upcoming', duration: '45 min', prompt: 'Explain Day 15: OAuth 2.0 Roles and Grant Types.' },
-      { day: 16, title: 'Day 16: Authorization Code Flow with PKCE', desc: 'Proof Key for Code Exchange for SPAs and Mobile.', status: 'Upcoming', duration: '50 min', prompt: 'Explain Day 16: OAuth 2.0 Authorization Code Flow with PKCE.' },
-      { day: 17, title: 'Day 17: OpenID Connect (OIDC) & ID Tokens', desc: 'Authentication layer on top of OAuth 2.0, userInfo endpoint.', status: 'Upcoming', duration: '45 min', prompt: 'Explain Day 17: OpenID Connect (OIDC) & ID Tokens.' },
-      { day: 18, title: 'Day 18: Implementing Login with Google / GitHub', desc: 'Configuring OAuth credentials, redirect URIs, and callback handler.', status: 'Upcoming', duration: '50 min', prompt: 'Explain Day 18: Implementing Login with Google / GitHub.' },
-      { day: 19, title: 'Day 19: Single Sign-On (SSO) & SAML 2.0 Basics', desc: 'Enterprise identity federation.', status: 'Upcoming', duration: '45 min', prompt: 'Explain Day 19: Single Sign-On (SSO) & SAML 2.0.' },
-      { day: 20, title: 'Day 20: Two-Factor Authentication (2FA / TOTP)', desc: 'HMAC-based & Time-based OTP, QR code generation.', status: 'Upcoming', duration: '50 min', prompt: 'Explain Day 20: Two-Factor Authentication (TOTP / 2FA).' },
-      { day: 21, title: 'Day 21: Week 3 OAuth Sprint', desc: 'Add Social Login (Google/GitHub) to your application.', status: 'Upcoming', duration: '60 min', prompt: 'Provide a Week 3 OAuth 2.0 Review.' }
-    ]
-  },
-  {
-    id: 4,
-    num: 'WEEK 04',
-    title: 'AUTHORIZATION (RBAC) & SECURITY DEFENSES',
-    status: 'Upcoming',
-    progress: 0,
-    duration: '7 Days',
-    whyMatters: 'Role-Based Access Control and protecting against XSS, CSRF, and SQLi.',
-    days: [
-      { day: 22, title: 'Day 22: Role-Based Access Control (RBAC)', desc: 'User roles, permissions matrix, middleware enforcement.', status: 'Upcoming', duration: '45 min', prompt: 'Explain Day 22: Role-Based Access Control (RBAC).' },
-      { day: 23, title: 'Day 23: Attribute-Based Access Control (ABAC)', desc: 'Dynamic policy enforcement based on context & ownership.', status: 'Upcoming', duration: '45 min', prompt: 'Explain Day 23: Attribute-Based Access Control (ABAC).' },
-      { day: 24, title: 'Day 24: Cross-Site Scripting (XSS) Prevention', desc: 'Stored XSS, Reflected XSS, Content Security Policy (CSP).', status: 'Upcoming', duration: '50 min', prompt: 'Explain Day 24: XSS Prevention & Content Security Policy.' },
-      { day: 25, title: 'Day 25: Cross-Site Request Forgery (CSRF) Tokens', desc: 'Double Submit Cookie pattern, SameSite cookies.', status: 'Upcoming', duration: '45 min', prompt: 'Explain Day 25: CSRF Attacks & Defense Mechanisms.' },
-      { day: 26, title: 'Day 26: SQL Injection & Parameterized Queries', desc: 'Prepared statements, ORM safety against SQLi.', status: 'Upcoming', duration: '45 min', prompt: 'Explain Day 26: SQL Injection & Parameterized Queries.' },
-      { day: 27, title: 'Day 27: Full Auth Security Comprehensive Review', desc: 'Complete Security Audit checklist for Web APIs.', status: 'Upcoming', duration: '60 min', prompt: 'Provide a Complete Web API Security Audit Checklist.' },
-      { day: 28, title: 'Day 28: Capstone Assessment & Auth Mock Interview', desc: 'Design an Enterprise Auth & Identity Service from scratch.', status: 'Upcoming', duration: '75 min', prompt: 'Conduct a Final Authentication Security Capstone Interview.' }
-    ]
-  }
-];
-
 /* ── HELPER FUNCTION TO GET ROADMAP BY GOAL NAME ── */
-export const getRoadmapByGoal = (goalName) => {
-  const g = (goalName || '').toUpperCase();
-  if (g.includes('DATABASE') || g.includes('DB')) return DB_ROADMAP;
-  if (g.includes('SYSTEM') || g.includes('SYS')) return SYS_ROADMAP;
-  if (g.includes('AUTH') || g.includes('AUTHENTICATION')) return AUTH_ROADMAP;
-  return DSA_ROADMAP;
+export const getRoadmapByGoal = (goalName, timelineWeeks = 4, level = 'Basic / Beginner') => {
+  return generatePersonalizedRoadmap(goalName, timelineWeeks, level);
 };
 
 export const TODAY_MISSION = {
