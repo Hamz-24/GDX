@@ -40,13 +40,24 @@ const Roadmap = () => {
   const [showGoalModal, setShowGoalModal] = useState(false);
   const [loadingBackend, setLoadingBackend] = useState(true);
 
-  // Resume & Assignment Import State
+  // Resume Engine State
   const [showResumeModal, setShowResumeModal] = useState(false);
-  const [showAssignmentModal, setShowAssignmentModal] = useState(false);
   const [resumeText, setResumeText] = useState('');
+  const [resumeFileName, setResumeFileName] = useState('');
+  const [resumeParsing, setResumeParsing] = useState(false);
+  const [resumeAnalyzing, setResumeAnalyzing] = useState(false);
+  const [resumeError, setResumeError] = useState('');
+
+  // Assignment Engine State
+  const [showAssignmentModal, setShowAssignmentModal] = useState(false);
   const [assignmentText, setAssignmentText] = useState('');
-  const [fileName, setFileName] = useState('');
-  const [analyzing, setAnalyzing] = useState(false);
+  const [assignmentFileName, setAssignmentFileName] = useState('');
+  const [assignmentParsing, setAssignmentParsing] = useState(false);
+  const [assignmentAnalyzing, setAssignmentAnalyzing] = useState(false);
+  const [assignmentError, setAssignmentError] = useState('');
+
+  // Success Toast Banner
+  const [successBanner, setSuccessBanner] = useState('');
 
   // Active roadmap data generated dynamically for timeline (4, 8, 12 weeks), level, & domain
   const [roadmapData, setRoadmapData] = useState(() => getRoadmapByGoal(selectedGoal, timeline, level));
@@ -161,24 +172,32 @@ const Roadmap = () => {
 
   const toggleWeek = (id) => setExpandedWeek(prev => prev === id ? null : id);
 
-  const [parsingFile, setParsingFile] = useState(false);
-  const [uiError, setUiError] = useState('');
-
-  const handleFileUpload = (e, setTargetText) => {
+  // Resume File Upload Handler
+  const handleResumeFileUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    setFileName(file.name);
-    setParsingFile(true);
-    setUiError('');
+    setResumeFileName(file.name);
+    setResumeParsing(true);
+    setResumeError('');
 
     const ext = file.name.split('.').pop().toLowerCase();
-    if (ext === 'txt' || ext === 'md') {
+    if (ext === 'txt' || ext === 'md' || ext === 'json') {
       const reader = new FileReader();
       reader.onload = (event) => {
         let content = event.target.result || '';
-        content = content.replace(/[\x00-\x09\x0B\x0C\x0E-\x1F]/g, ' ');
-        setTargetText(content);
-        setParsingFile(false);
+        if (ext === 'json') {
+          try {
+            const parsedObj = JSON.parse(content);
+            content = typeof parsedObj === 'string' ? parsedObj : JSON.stringify(parsedObj, null, 2);
+          } catch (_) { /* use raw text */ }
+        }
+        content = content.replace(/[\x00-\x09\x0B\x0C\x0E-\x1F]/g, ' ').trim();
+        setResumeText(content);
+        setResumeParsing(false);
+      };
+      reader.onerror = () => {
+        setResumeError('Failed to read file from disk.');
+        setResumeParsing(false);
       };
       reader.readAsText(file);
     } else {
@@ -190,12 +209,68 @@ const Roadmap = () => {
             method: 'POST',
             body: JSON.stringify({ fileBase64, fileName: file.name })
           });
-          setTargetText(parsed.text || '');
+          setResumeText(parsed.text || '');
         } catch (err) {
-          setUiError(err.message || 'Failed to extract text from document');
+          setResumeError(err.message || 'Failed to extract text from document');
         } finally {
-          setParsingFile(false);
+          setResumeParsing(false);
         }
+      };
+      reader.onerror = () => {
+        setResumeError('Failed to encode document.');
+        setResumeParsing(false);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  // Assignment File Upload Handler
+  const handleAssignmentFileUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setAssignmentFileName(file.name);
+    setAssignmentParsing(true);
+    setAssignmentError('');
+
+    const ext = file.name.split('.').pop().toLowerCase();
+    if (ext === 'txt' || ext === 'md' || ext === 'json') {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        let content = event.target.result || '';
+        if (ext === 'json') {
+          try {
+            const parsedObj = JSON.parse(content);
+            content = typeof parsedObj === 'string' ? parsedObj : JSON.stringify(parsedObj, null, 2);
+          } catch (_) { /* use raw text */ }
+        }
+        content = content.replace(/[\x00-\x09\x0B\x0C\x0E-\x1F]/g, ' ').trim();
+        setAssignmentText(content);
+        setAssignmentParsing(false);
+      };
+      reader.onerror = () => {
+        setAssignmentError('Failed to read file from disk.');
+        setAssignmentParsing(false);
+      };
+      reader.readAsText(file);
+    } else {
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        try {
+          const fileBase64 = event.target.result;
+          const parsed = await api('/api/roadmap/parse-document', {
+            method: 'POST',
+            body: JSON.stringify({ fileBase64, fileName: file.name })
+          });
+          setAssignmentText(parsed.text || '');
+        } catch (err) {
+          setAssignmentError(err.message || 'Failed to extract text from document');
+        } finally {
+          setAssignmentParsing(false);
+        }
+      };
+      reader.onerror = () => {
+        setAssignmentError('Failed to encode document.');
+        setAssignmentParsing(false);
       };
       reader.readAsDataURL(file);
     }
@@ -203,43 +278,55 @@ const Roadmap = () => {
 
   const handleAnalyzeResume = async (e) => {
     e.preventDefault();
-    if (!resumeText.trim()) return;
-    setAnalyzing(true);
-    setUiError('');
+    if (!resumeText || resumeText.trim().length < 5) {
+      setResumeError('Please upload a resume file or paste your resume text (minimum 5 characters).');
+      return;
+    }
+    setResumeAnalyzing(true);
+    setResumeError('');
     try {
-      await api('/api/roadmap/analyze-resume', {
+      const res = await api('/api/roadmap/analyze-resume', {
         method: 'POST',
-        body: JSON.stringify({ resumeText })
+        body: JSON.stringify({ resumeText: resumeText.trim() })
       });
       await fetchAndSetRoadmap();
+      window.dispatchEvent(new CustomEvent('gdx_roadmap_updated'));
       setShowResumeModal(false);
       setResumeText('');
-      setFileName('');
+      setResumeFileName('');
+      setSuccessBanner(res.message || 'Resume analyzed! Personalized gap-focused roadmap generated.');
+      setTimeout(() => setSuccessBanner(''), 8000);
     } catch (err) {
-      setUiError(err.message || 'Could not analyze resume');
+      setResumeError(err.message || 'Could not analyze resume. Please try again.');
     } finally {
-      setAnalyzing(false);
+      setResumeAnalyzing(false);
     }
   };
 
   const handleAnalyzeAssignment = async (e) => {
     e.preventDefault();
-    if (!assignmentText.trim()) return;
-    setAnalyzing(true);
-    setUiError('');
+    if (!assignmentText || assignmentText.trim().length < 5) {
+      setAssignmentError('Please upload an assignment file or paste project specifications (minimum 5 characters).');
+      return;
+    }
+    setAssignmentAnalyzing(true);
+    setAssignmentError('');
     try {
-      await api('/api/roadmap/analyze-assignment', {
+      const res = await api('/api/roadmap/analyze-assignment', {
         method: 'POST',
-        body: JSON.stringify({ assignmentText })
+        body: JSON.stringify({ assignmentText: assignmentText.trim() })
       });
       await fetchAndSetRoadmap();
+      window.dispatchEvent(new CustomEvent('gdx_roadmap_updated'));
       setShowAssignmentModal(false);
       setAssignmentText('');
-      setFileName('');
+      setAssignmentFileName('');
+      setSuccessBanner(res.message || 'Assignment deconstructed into a 7-Day Implementation Sprint!');
+      setTimeout(() => setSuccessBanner(''), 8000);
     } catch (err) {
-      setUiError(err.message || 'Could not deconstruct assignment');
+      setAssignmentError(err.message || 'Could not deconstruct assignment. Please try again.');
     } finally {
-      setAnalyzing(false);
+      setAssignmentAnalyzing(false);
     }
   };
 
@@ -303,6 +390,19 @@ const Roadmap = () => {
   return (
     <div className="max-w-4xl mx-auto space-y-6 font-sans pb-16">
 
+      {/* Dynamic Success Toast Banner */}
+      {successBanner && (
+        <div className="p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-950/80 border border-emerald-300 dark:border-emerald-700 text-emerald-800 dark:text-emerald-200 text-xs font-bold font-mono flex items-center justify-between shadow-lg animate-in fade-in duration-200">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 size={18} className="text-emerald-500 shrink-0" />
+            <span>{successBanner}</span>
+          </div>
+          <button onClick={() => setSuccessBanner('')} className="p-1 hover:text-emerald-950 dark:hover:text-white cursor-pointer">
+            <X size={15} />
+          </button>
+        </div>
+      )}
+
       {/* Header Banner with Goal Switcher */}
       <div className="bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 rounded-3xl p-6 md:p-8 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div className="space-y-2">
@@ -335,14 +435,14 @@ const Roadmap = () => {
           </button>
 
           <button
-            onClick={() => setShowResumeModal(true)}
+            onClick={() => { setResumeError(''); setShowResumeModal(true); }}
             className="bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 font-bold text-xs py-2.5 px-4 rounded-full hover:bg-amber-500 hover:text-zinc-950 transition-all flex items-center gap-1.5 shadow-sm cursor-pointer"
           >
             <FileText size={14} /> AI Resume Gap Import
           </button>
 
           <button
-            onClick={() => setShowAssignmentModal(true)}
+            onClick={() => { setAssignmentError(''); setShowAssignmentModal(true); }}
             className="bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-200 font-bold text-xs py-2.5 px-4 rounded-full transition-all flex items-center gap-1.5 cursor-pointer"
           >
             <FileCode size={14} /> Assignment Parser
@@ -361,29 +461,43 @@ const Roadmap = () => {
                   Import Resume & Analyze Skill Gaps
                 </h3>
               </div>
-              <button onClick={() => setShowResumeModal(false)} className="p-1 text-zinc-400 hover:text-zinc-700 dark:hover:text-white cursor-pointer" aria-label="Close modal">
+              <button 
+                onClick={() => { setShowResumeModal(false); setResumeError(''); }} 
+                className="p-1 text-zinc-400 hover:text-zinc-700 dark:hover:text-white cursor-pointer" 
+                aria-label="Close modal"
+              >
                 <X size={18} />
               </button>
             </div>
 
+            {resumeError && (
+              <div className="p-3.5 rounded-2xl bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs font-bold font-mono">
+                ⚠️ {resumeError}
+              </div>
+            )}
+
             <form onSubmit={handleAnalyzeResume} className="space-y-4 text-xs font-sans">
               <div>
                 <label className="block text-zinc-700 dark:text-zinc-300 font-bold mb-2">
-                  Upload Resume File (.txt, .md, .json, .pdf)
+                  Upload Resume File (.txt, .md, .json, .pdf, .docx)
                 </label>
                 <div className="relative border-2 border-dashed border-zinc-300 dark:border-zinc-700 hover:border-amber-400 rounded-2xl p-4 text-center cursor-pointer transition-colors">
                   <input
                     type="file"
                     accept=".txt,.md,.json,.pdf,.docx"
-                    onChange={(e) => handleFileUpload(e, setResumeText)}
+                    onChange={handleResumeFileUpload}
                     className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                   />
                   <div className="flex flex-col items-center gap-1 text-zinc-500">
                     <Upload size={20} className="text-amber-500" />
                     <span className="font-bold text-xs text-zinc-800 dark:text-zinc-200">
-                      {fileName ? `File Selected: ${fileName}` : 'Click or Drag & Drop Resume File'}
+                      {resumeParsing 
+                        ? 'Parsing File Text...' 
+                        : resumeFileName 
+                        ? `Selected File: ${resumeFileName}` 
+                        : 'Click or Drag & Drop Resume File'}
                     </span>
-                    <span className="text-[10px] text-zinc-400">Extracts text and feeds into Gemini AI Gap Analyzer</span>
+                    <span className="text-[10px] text-zinc-400">Extracts text and populates input for AI Gap Analysis</span>
                   </div>
                 </div>
               </div>
@@ -395,19 +509,30 @@ const Roadmap = () => {
                 <textarea
                   rows={4}
                   value={resumeText}
-                  onChange={e => setResumeText(e.target.value)}
+                  onChange={e => { setResumeText(e.target.value); setResumeError(''); }}
                   placeholder="Paste your current resume details, skills, and experience..."
                   className="w-full p-3.5 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-2xl text-xs font-mono text-zinc-900 dark:text-white focus:outline-none"
                 />
+                {resumeText.trim().length > 0 && (
+                  <span className="text-[10px] font-mono text-zinc-400 mt-1 block">
+                    Character Count: {resumeText.trim().length}
+                  </span>
+                )}
               </div>
 
               <button
                 type="submit"
-                disabled={analyzing || !resumeText.trim()}
+                disabled={resumeAnalyzing || resumeParsing || !resumeText.trim()}
                 className="w-full bg-[#F5C542] hover:bg-[#E5B532] text-zinc-950 font-bold text-sm py-3.5 rounded-2xl shadow-pill transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
               >
-                {analyzing ? <Loader size={16} className="animate-spin" /> : <Sparkles size={16} />}
-                <span>{analyzing ? 'Analyzing Skill Gaps via Gemini...' : 'Analyze Gaps & Re-generate Roadmap'}</span>
+                {resumeAnalyzing || resumeParsing ? <Loader size={16} className="animate-spin" /> : <Sparkles size={16} />}
+                <span>
+                  {resumeParsing
+                    ? 'Extracting Text from File...'
+                    : resumeAnalyzing
+                    ? 'Analyzing Skill Gaps via Gemini...'
+                    : 'Analyze Gaps & Re-generate Roadmap'}
+                </span>
               </button>
             </form>
           </div>
@@ -425,29 +550,43 @@ const Roadmap = () => {
                   Deconstruct Project / Assignment
                 </h3>
               </div>
-              <button onClick={() => setShowAssignmentModal(false)} className="p-1 text-zinc-400 hover:text-zinc-700 dark:hover:text-white cursor-pointer" aria-label="Close modal">
+              <button 
+                onClick={() => { setShowAssignmentModal(false); setAssignmentError(''); }} 
+                className="p-1 text-zinc-400 hover:text-zinc-700 dark:hover:text-white cursor-pointer" 
+                aria-label="Close modal"
+              >
                 <X size={18} />
               </button>
             </div>
 
+            {assignmentError && (
+              <div className="p-3.5 rounded-2xl bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs font-bold font-mono">
+                ⚠️ {assignmentError}
+              </div>
+            )}
+
             <form onSubmit={handleAnalyzeAssignment} className="space-y-4 text-xs font-sans">
               <div>
                 <label className="block text-zinc-700 dark:text-zinc-300 font-bold mb-2">
-                  Upload Assignment Brief (.txt, .md, .pdf)
+                  Upload Assignment Brief (.txt, .md, .json, .pdf, .docx)
                 </label>
                 <div className="relative border-2 border-dashed border-zinc-300 dark:border-zinc-700 hover:border-amber-400 rounded-2xl p-4 text-center cursor-pointer transition-colors">
                   <input
                     type="file"
                     accept=".txt,.md,.json,.pdf,.docx"
-                    onChange={(e) => handleFileUpload(e, setAssignmentText)}
+                    onChange={handleAssignmentFileUpload}
                     className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                   />
                   <div className="flex flex-col items-center gap-1 text-zinc-500">
                     <Upload size={20} className="text-amber-500" />
                     <span className="font-bold text-xs text-zinc-800 dark:text-zinc-200">
-                      {fileName ? `File Selected: ${fileName}` : 'Click or Drag & Drop Project File'}
+                      {assignmentParsing 
+                        ? 'Parsing File Text...' 
+                        : assignmentFileName 
+                        ? `Selected File: ${assignmentFileName}` 
+                        : 'Click or Drag & Drop Project File'}
                     </span>
-                    <span className="text-[10px] text-zinc-400">Parses project requirements into a 7-day sprint</span>
+                    <span className="text-[10px] text-zinc-400">Parses project requirements into a 7-day implementation sprint</span>
                   </div>
                 </div>
               </div>
@@ -459,19 +598,30 @@ const Roadmap = () => {
                 <textarea
                   rows={4}
                   value={assignmentText}
-                  onChange={e => setAssignmentText(e.target.value)}
+                  onChange={e => { setAssignmentText(e.target.value); setAssignmentError(''); }}
                   placeholder="Paste project guidelines, hackathon specs, or assignment details..."
                   className="w-full p-3.5 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-2xl text-xs font-mono text-zinc-900 dark:text-white focus:outline-none"
                 />
+                {assignmentText.trim().length > 0 && (
+                  <span className="text-[10px] font-mono text-zinc-400 mt-1 block">
+                    Character Count: {assignmentText.trim().length}
+                  </span>
+                )}
               </div>
 
               <button
                 type="submit"
-                disabled={analyzing || !assignmentText.trim()}
+                disabled={assignmentAnalyzing || assignmentParsing || !assignmentText.trim()}
                 className="w-full bg-[#F5C542] hover:bg-[#E5B532] text-zinc-950 font-bold text-sm py-3.5 rounded-2xl shadow-pill transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
               >
-                {analyzing ? <Loader size={16} className="animate-spin" /> : <Sparkles size={16} />}
-                <span>{analyzing ? 'Deconstructing Project...' : 'Generate 7-Day Implementation Sprint'}</span>
+                {assignmentAnalyzing || assignmentParsing ? <Loader size={16} className="animate-spin" /> : <Sparkles size={16} />}
+                <span>
+                  {assignmentParsing
+                    ? 'Extracting Text from File...'
+                    : assignmentAnalyzing
+                    ? 'Deconstructing Project Sprint...'
+                    : 'Generate 7-Day Implementation Sprint'}
+                </span>
               </button>
             </form>
           </div>

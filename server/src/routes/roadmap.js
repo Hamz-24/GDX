@@ -20,12 +20,12 @@ const getGenAI = () => {
 };
 
 // ═══════════════════════════════════════════════════════════
-// POST /api/roadmap/parse-document — Server-side PDF/DOCX Text Extraction
+// POST /api/roadmap/parse-document — Server-side PDF/DOCX/TXT/JSON Text Extraction
 // ═══════════════════════════════════════════════════════════
 router.post('/parse-document', async (req, res) => {
   try {
     const { fileBase64, fileName } = req.body;
-    if (!fileBase64) {
+    if (!fileBase64 || typeof fileBase64 !== 'string') {
       return res.status(400).json({ message: 'No file data provided' });
     }
 
@@ -41,8 +41,16 @@ router.post('/parse-document', async (req, res) => {
     } else if (ext === 'docx') {
       const docxData = await mammoth.extractRawText({ buffer });
       extractedText = docxData.value || '';
-    } else if (ext === 'txt' || ext === 'md') {
+    } else if (ext === 'txt' || ext === 'md' || ext === 'json') {
       extractedText = buffer.toString('utf-8');
+      if (ext === 'json') {
+        try {
+          const parsedObj = JSON.parse(extractedText);
+          extractedText = typeof parsedObj === 'string' ? parsedObj : JSON.stringify(parsedObj, null, 2);
+        } catch (_) {
+          /* use raw UTF-8 string */
+        }
+      }
     } else {
       try {
         const pdfData = await pdfParse(buffer);
@@ -71,7 +79,6 @@ router.post('/parse-document', async (req, res) => {
     res.status(500).json({ message: `Document extraction failed: ${err.message}` });
   }
 });
-
 
 // ─── PROMPT BUILDER ───
 const buildRoadmapPrompt = (goal, level, weeks) => {
@@ -141,7 +148,6 @@ const generateSmartFallback = (goal, level, weeks) => {
   return fallback;
 };
 
-
 // ─── AI GENERATION UTILITY ───
 export const generateAIContent = async (prompt) => {
   try {
@@ -190,12 +196,8 @@ router.get('/', async (req, res) => {
     const weeks = user ? (user.timelineWeeks || 4) : 4;
     const expectedTotalDays = weeks * 7;
     
-    if (steps.length === 0 || steps.length < expectedTotalDays) {
-      if (steps.length > 0 && steps.length < expectedTotalDays) {
-        console.log(`🧹 Replacing legacy partial roadmap (${steps.length} days) with full ${weeks}-week roadmap (${expectedTotalDays} days)...`);
-        await RoadmapStep.deleteMany({ userId: req.user._id });
-      }
-
+    // If roadmap steps exist (including 7-day sprints), return them directly!
+    if (steps.length === 0) {
       const goal = user?.goal || 'DATA STRUCTURES';
       const level = user?.level || 'intermediate';
 
@@ -260,25 +262,31 @@ router.get('/', async (req, res) => {
 router.post('/analyze-resume', async (req, res) => {
   try {
     const { resumeText } = req.body;
+    if (!resumeText || typeof resumeText !== 'string' || resumeText.trim().length < 5) {
+      return res.status(400).json({ message: 'Please upload a resume or paste your resume text.' });
+    }
+
     const user = await User.findById(req.user._id);
-    const goal = user.goal || 'Learn Software Engineering';
+    if (!user) return res.status(401).json({ message: 'Authenticated user not found' });
+
+    const goal = user.goal || 'Software Engineering';
     const weeks = user.timelineWeeks || 4;
 
-    const prompt = `Analyze this resume against the goal: "${goal}". 
+    const prompt = `Analyze this resume against the target career goal: "${goal}". 
     1. Identify what skills the user ALREADY has.
     2. Identify the GAPS needed for the objective.
-    3. Generate a refined, intensive learning roadmap for ${weeks} weeks focusing ONLY on the gaps.
+    3. Generate a refined, intensive learning roadmap for ${weeks} weeks (${weeks * 7} total days) focusing ONLY on the gaps.
     
-    Resume: ${resumeText}
+    Resume: ${resumeText.trim()}
     
-    Output format: STRICT JSON array matching the roadmap schema (week, day, phaseName, dayName, tasks).`;
+    Output format: STRICT JSON array matching the roadmap schema (week, day, phaseName, dayName, context, tasks).`;
 
     let generatedSteps = await generateAIContent(prompt);
     if (!generatedSteps || !Array.isArray(generatedSteps) || generatedSteps.length === 0) {
       console.log('⚠️ Resume analysis using smart fallback generator...');
       generatedSteps = generateSmartFallback(goal, user.level || 'intermediate', weeks);
     }
-    
+
     await RoadmapStep.deleteMany({ userId: req.user._id });
     await RoadmapStep.insertMany(generatedSteps.map((s, idx) => {
       const dayNum = s.day || (idx + 1);
@@ -291,17 +299,20 @@ router.post('/analyze-resume', async (req, res) => {
         week: weekNum,
         day: dayNum,
         phaseName: s.phaseName || `Phase ${weekNum}`,
-        dayName: s.dayName || `Day ${dayNum}`,
-        context: s.context || '',
-        completed: Boolean(s.completed),
+        dayName: s.dayName || `Day ${dayNum}: ${goal}`,
+        context: s.context || `Resume Gap Optimization Day ${dayNum}`,
+        completed: false,
         tasks: rawTasks.map((t, tidx) => ({
           taskId: t.taskId || `w${weekNum}-d${dayNum}-t${tidx + 1}`,
           title: typeof t === 'string' ? t : (t.title || `Task ${tidx + 1}`),
-          completed: Boolean(t.completed)
+          completed: false
         }))
       };
     }));
-    return res.json({ message: 'Roadmap optimized via resume analysis', count: generatedSteps.length });
+
+    await User.findByIdAndUpdate(req.user._id, { currentRoadmapDay: 1 });
+
+    return res.json({ success: true, message: 'Roadmap optimized via resume analysis', count: generatedSteps.length });
   } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
@@ -311,22 +322,44 @@ router.post('/analyze-resume', async (req, res) => {
 router.post('/analyze-assignment', async (req, res) => {
   try {
     const { assignmentText } = req.body;
+    if (!assignmentText || typeof assignmentText !== 'string' || assignmentText.trim().length < 5) {
+      return res.status(400).json({ message: 'Please provide assignment specifications or upload a project file.' });
+    }
+
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(401).json({ message: 'Authenticated user not found' });
+
+    const prompt = `Break this assignment/project specification into a step-by-step implementation sprint roadmap for exactly 7 days (1 week).
+    Assignment Specification: ${assignmentText.trim()}
     
-    const prompt = `Break this assignment/project into a step-by-step implementation roadmap for exactly 7 days (1 week).
-    Assignment: ${assignmentText}
-    
-    Output format: STRICT JSON array matching the roadmap schema (week: 1, day: 1-7, phaseName: "Project Sprint", dayName, tasks).`;
+    Output format: STRICT JSON array matching the roadmap schema (week: 1, day: 1-7, phaseName: "Project Sprint", dayName, context, tasks).`;
 
     let generatedSteps = await generateAIContent(prompt);
     if (!generatedSteps || !Array.isArray(generatedSteps) || generatedSteps.length === 0) {
       console.log('⚠️ Assignment parser using smart fallback generator...');
       generatedSteps = generateSmartFallback('Project Sprint', 'intermediate', 1);
     }
-    
+
+    // Ensure 7 days
+    if (generatedSteps.length > 7) generatedSteps = generatedSteps.slice(0, 7);
+    while (generatedSteps.length < 7) {
+      const idx = generatedSteps.length + 1;
+      generatedSteps.push({
+        week: 1,
+        day: idx,
+        phaseName: 'Project Sprint',
+        dayName: `Day ${idx}: Integration & Final Polish`,
+        context: `Sprint Day ${idx} completion milestone.`,
+        tasks: [
+          { taskId: `w1-d${idx}-t1`, title: `[SPRINT TASK] Complete Sprint Day ${idx} module`, completed: false }
+        ]
+      });
+    }
+
     await RoadmapStep.deleteMany({ userId: req.user._id });
     await RoadmapStep.insertMany(generatedSteps.map((s, idx) => {
       const dayNum = s.day || (idx + 1);
-      const weekNum = s.week && s.week > 0 ? s.week : Math.ceil(dayNum / 7);
+      const weekNum = 1;
       const rawTasks = Array.isArray(s.tasks) && s.tasks.length > 0 ? s.tasks : [
         { title: `[PRIMARY MISSION] Master ${s.dayName || 'Day Focus'}`, completed: false }
       ];
@@ -334,18 +367,21 @@ router.post('/analyze-assignment', async (req, res) => {
         userId: req.user._id,
         week: weekNum,
         day: dayNum,
-        phaseName: s.phaseName || `Phase ${weekNum}`,
-        dayName: s.dayName || `Day ${dayNum}`,
-        context: s.context || '',
-        completed: Boolean(s.completed),
+        phaseName: s.phaseName || 'Project Sprint',
+        dayName: s.dayName || `Day ${dayNum}: Sprint Implementation`,
+        context: s.context || `Project Sprint Day ${dayNum}`,
+        completed: false,
         tasks: rawTasks.map((t, tidx) => ({
           taskId: t.taskId || `w${weekNum}-d${dayNum}-t${tidx + 1}`,
           title: typeof t === 'string' ? t : (t.title || `Task ${tidx + 1}`),
-          completed: Boolean(t.completed)
+          completed: false
         }))
       };
     }));
-    return res.json({ message: 'Assignment deconstructed successfully', count: generatedSteps.length });
+
+    await User.findByIdAndUpdate(req.user._id, { currentRoadmapDay: 1 });
+
+    return res.json({ success: true, message: 'Assignment deconstructed successfully', count: 7 });
   } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
