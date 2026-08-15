@@ -73,34 +73,6 @@ router.post('/parse-document', async (req, res) => {
 });
 
 
-// ─── SCHEMA: Enforces structured JSON output from Gemini ───
-const roadmapSchema = {
-  type: "ARRAY",
-  items: {
-    type: "OBJECT",
-    properties: {
-      week: { type: "NUMBER", description: "Week number (1-based)" },
-      day: { type: "NUMBER", description: "Absolute day number across entire roadmap (1-based)" },
-      phaseName: { type: "STRING", description: "The overarching theme for this week" },
-      dayName: { type: "STRING", description: "A descriptive title for this day's focus" },
-      context: { type: "STRING", description: "A 1-2 sentence AI briefing for this specific day's mission" },
-      tasks: {
-        type: "ARRAY",
-        items: {
-          type: "OBJECT",
-          properties: {
-            taskId: { type: "STRING", description: "Unique slug e.g. w1-d3-t1" },
-            title: { type: "STRING", description: "Specific actionable task" },
-            completed: { type: "BOOLEAN", description: "Always false initially" }
-          },
-          required: ["taskId", "title", "completed"]
-        }
-      }
-    },
-    required: ["week", "day", "phaseName", "dayName", "context", "tasks"]
-  }
-};
-
 // ─── PROMPT BUILDER ───
 const buildRoadmapPrompt = (goal, level, weeks) => {
   return `You are GuideX, an elite personal mentor who creates deeply personalized, production-grade learning roadmaps.
@@ -115,32 +87,10 @@ Create a comprehensive, day-by-day learning roadmap that takes the user from the
 
 ## Rules
 1. Generate EXACTLY ${weeks * 7} day objects, one for each day.
-2. **STRICT NON-REPETITION (THEORY)**: Every single day MUST introduce a unique CONCEPT or TOPIC. DO NOT repeat the same conceptual lecture or theory across different days.
-3. **NEURAL REINFORCEMENT (PRACTICE)**: While the *concept* must be unique, you *may* include "Practice" or "Build" tasks that reinforce previous concepts if they are part of a larger project.
-4. **PROGRESSIVE DEPTH**: Ensure a logical flow where each day builds upon the previous one. Day 1: Setup → Day 2: Syntax → Day 3: Logic → etc.
-5. Each day must include a **context** field: a brief, punchy mission briefing for that specific node.
-6. Each day must have 2-4 **tasks** that are granular and verifiable.
-7. All task **completed** fields must be set to **false**.
-8. Task IDs must follow the pattern "w{week}-d{day}-t{taskNumber}" (e.g., "w1-d3-t2").
-9. The **day** field is the ABSOLUTE day number (continuous from 1 to ${weeks * 7}). So Week 2, Day 1 = day 8.
-
-## Quality Standards
-- Use domain-specific terminology relevant to "${goal}".
-- For programming goals: include specific technologies, frameworks, algorithms, and design patterns.
-- For career/skill goals: include specific methodologies, tools, case studies, and practical exercises.
-- Structure the roadmap with clear progression: fundamentals → intermediate concepts → advanced application → real-world projects.
-- Include at least one "build/create something" task per week.
-- Final week should include capstone project tasks and portfolio/review activities.
-
-## Example Quality
-Instead of: "Learn about arrays"
-Write: "Implement dynamic array resizing with amortized O(1) insertion analysis"
-
-Instead of: "Study React basics"  
-Write: "Build a component tree with props drilling, then refactor using Context API"
-
-Instead of: "Practice algorithms"
-Write: "Solve 3 medium-difficulty graph traversal problems using BFS/DFS on LeetCode"`;
+2. Every single day MUST introduce a unique CONCEPT or TOPIC.
+3. Each day must include a context field: a brief mission briefing.
+4. Each day must have 2-4 tasks that are granular and verifiable.
+5. Task IDs must follow the pattern "w{week}-d{day}-t{taskNumber}".`;
 };
 
 // ─── SMART FALLBACK GENERATOR ───
@@ -169,14 +119,9 @@ const generateSmartFallback = (goal, level, weeks) => {
     const phase = levelPhases[phaseIndex];
     const dayInWeek = ((d - 1) % 7) + 1;
 
-    // Primary task is the one assigned to this specific day
     const primaryTask = phase.tasks[(dayInWeek - 1) % phase.tasks.length];
-    
-    // Reinforcements are chosen from PREVIOUS days in the cycle to avoid "future spoilers"
     const r1 = phase.tasks[(dayInWeek - 2 + phase.tasks.length) % phase.tasks.length];
     const r2 = phase.tasks[(dayInWeek - 3 + phase.tasks.length) % phase.tasks.length];
-
-    const taskSet = [primaryTask, r1, r2];
 
     fallback.push({
       userId: null,
@@ -228,7 +173,6 @@ router.get('/', async (req, res) => {
 
     let steps = await RoadmapStep.find({ userId: req.user._id }).sort({ week: 1, day: 1 });
     
-    // Auto-correct any legacy steps where week was incorrectly set to 1 for day > 7
     let needsSave = false;
     for (const s of steps) {
       const correctWeek = Math.ceil((s.day || 1) / 7);
@@ -246,7 +190,6 @@ router.get('/', async (req, res) => {
     const weeks = user ? (user.timelineWeeks || 4) : 4;
     const expectedTotalDays = weeks * 7;
     
-    // If no steps exist OR stored steps are fewer than expected days for user's timeline
     if (steps.length === 0 || steps.length < expectedTotalDays) {
       if (steps.length > 0 && steps.length < expectedTotalDays) {
         console.log(`🧹 Replacing legacy partial roadmap (${steps.length} days) with full ${weeks}-week roadmap (${expectedTotalDays} days)...`);
@@ -265,6 +208,9 @@ router.get('/', async (req, res) => {
           generatedSteps.map((s, idx) => {
             const dayNum = s.day || (idx + 1);
             const weekNum = s.week && s.week > 0 ? s.week : Math.ceil(dayNum / 7);
+            const rawTasks = Array.isArray(s.tasks) && s.tasks.length > 0 ? s.tasks : [
+              { title: `[PRIMARY MISSION] Master ${s.dayName || 'Day Focus'}`, completed: false }
+            ];
             return {
               userId: req.user._id,
               week: weekNum,
@@ -273,10 +219,10 @@ router.get('/', async (req, res) => {
               dayName: s.dayName || `Day ${dayNum}: ${goal}`,
               context: s.context || '',
               completed: false,
-              tasks: (s.tasks || []).map((t, tidx) => ({
+              tasks: rawTasks.map((t, tidx) => ({
                 taskId: t.taskId || `w${weekNum}-d${dayNum}-t${tidx + 1}`,
-                title: t.title || 'Complete task',
-                completed: false
+                title: typeof t === 'string' ? t : (t.title || `Task ${tidx + 1}`),
+                completed: Boolean(t.completed)
               }))
             };
           })
@@ -287,7 +233,16 @@ router.get('/', async (req, res) => {
         await RoadmapStep.insertMany(fallback.map((s, idx) => {
           const dayNum = s.day || (idx + 1);
           const weekNum = s.week && s.week > 0 ? s.week : Math.ceil(dayNum / 7);
-          return { ...s, week: weekNum, day: dayNum, userId: req.user._id };
+          return {
+            userId: req.user._id,
+            week: weekNum,
+            day: dayNum,
+            phaseName: s.phaseName,
+            dayName: s.dayName,
+            context: s.context,
+            completed: false,
+            tasks: s.tasks
+          };
         }));
       }
 
@@ -328,12 +283,22 @@ router.post('/analyze-resume', async (req, res) => {
     await RoadmapStep.insertMany(generatedSteps.map((s, idx) => {
       const dayNum = s.day || (idx + 1);
       const weekNum = s.week && s.week > 0 ? s.week : Math.ceil(dayNum / 7);
+      const rawTasks = Array.isArray(s.tasks) && s.tasks.length > 0 ? s.tasks : [
+        { title: `[PRIMARY MISSION] Master ${s.dayName || 'Day Focus'}`, completed: false }
+      ];
       return {
-        ...s,
+        userId: req.user._id,
         week: weekNum,
         day: dayNum,
-        userId: req.user._id,
-        context: s.context || ''
+        phaseName: s.phaseName || `Phase ${weekNum}`,
+        dayName: s.dayName || `Day ${dayNum}`,
+        context: s.context || '',
+        completed: Boolean(s.completed),
+        tasks: rawTasks.map((t, tidx) => ({
+          taskId: t.taskId || `w${weekNum}-d${dayNum}-t${tidx + 1}`,
+          title: typeof t === 'string' ? t : (t.title || `Task ${tidx + 1}`),
+          completed: Boolean(t.completed)
+        }))
       };
     }));
     return res.json({ message: 'Roadmap optimized via resume analysis', count: generatedSteps.length });
@@ -362,12 +327,22 @@ router.post('/analyze-assignment', async (req, res) => {
     await RoadmapStep.insertMany(generatedSteps.map((s, idx) => {
       const dayNum = s.day || (idx + 1);
       const weekNum = s.week && s.week > 0 ? s.week : Math.ceil(dayNum / 7);
+      const rawTasks = Array.isArray(s.tasks) && s.tasks.length > 0 ? s.tasks : [
+        { title: `[PRIMARY MISSION] Master ${s.dayName || 'Day Focus'}`, completed: false }
+      ];
       return {
-        ...s,
+        userId: req.user._id,
         week: weekNum,
         day: dayNum,
-        userId: req.user._id,
-        context: s.context || ''
+        phaseName: s.phaseName || `Phase ${weekNum}`,
+        dayName: s.dayName || `Day ${dayNum}`,
+        context: s.context || '',
+        completed: Boolean(s.completed),
+        tasks: rawTasks.map((t, tidx) => ({
+          taskId: t.taskId || `w${weekNum}-d${dayNum}-t${tidx + 1}`,
+          title: typeof t === 'string' ? t : (t.title || `Task ${tidx + 1}`),
+          completed: Boolean(t.completed)
+        }))
       };
     }));
     return res.json({ message: 'Assignment deconstructed successfully', count: generatedSteps.length });
@@ -412,13 +387,11 @@ router.patch('/:day/task/:taskId', async (req, res) => {
 
     task.completed = req.body.completed;
     
-    // Evaluate if all tasks in this day are clear
     const allCompleted = step.tasks.every(t => t.completed);
     step.completed = allCompleted;
 
     await step.save();
 
-    // Auto-advance the user's timeline position when current day is fully completed
     if (allCompleted) {
       const user = await User.findById(req.user._id);
       if (user.currentRoadmapDay === dayNumeric) {
@@ -625,7 +598,6 @@ DELETE FROM Departments WHERE dept_id = 1;`,
     };
   }
 
-  // Default fallback for any unknown/unmatched topics — NEVER return TWO_POINTERS! Return NONE.
   return {
     hasSimulation: false,
     visualType: 'NONE',
@@ -726,7 +698,6 @@ Output ONLY raw valid JSON. No markdown backticks.`;
       }
       const parsedConcept = JSON.parse(textStr);
 
-      // Force visualType to match topic classifier (prevent AI hallucination of unrelated visualizers)
       parsedConcept.visualType = expectedVisualType;
       parsedConcept.hasSimulation = expectedVisualType !== 'NONE';
 
@@ -737,7 +708,6 @@ Output ONLY raw valid JSON. No markdown backticks.`;
     }
   } catch (err) { res.status(500).json({ message: err.message }); }
 });
-
 
 
 // ═══════════════════════════════════════════════════════════
@@ -752,4 +722,3 @@ router.delete('/', async (req, res) => {
 });
 
 export default router;
-
