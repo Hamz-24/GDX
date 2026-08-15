@@ -72,6 +72,40 @@ const extractProjectTitle = (text) => {
   return words.length > 35 ? words.substring(0, 32) + '...' : words;
 };
 
+// ─── HELPER: UNIVERSAL PDF PARSER ───
+const parsePdfBuffer = async (buffer) => {
+  if (!buffer || buffer.length === 0) {
+    throw new Error('PDF buffer is empty');
+  }
+
+  // 1. PDFParse Class (pdf-parse v2.4.5+)
+  const PDFClass = pdfParse.PDFParse || (pdfParse.default && pdfParse.default.PDFParse);
+  if (PDFClass) {
+    try {
+      const parser = new PDFClass({ data: buffer });
+      const result = await parser.getText();
+      if (typeof result === 'string') return result;
+      if (result && typeof result.text === 'string') return result.text;
+    } catch (err) {
+      console.warn('⚠️ PDFParse class attempt failed:', err.message);
+    }
+  }
+
+  // 2. Function Call (pdf-parse v1.x)
+  const fn = typeof pdfParse === 'function' ? pdfParse : (pdfParse.default || null);
+  if (typeof fn === 'function' && fn !== PDFClass) {
+    try {
+      const result = await fn(buffer);
+      if (typeof result === 'string') return result;
+      if (result && typeof result.text === 'string') return result.text;
+    } catch (err) {
+      console.warn('⚠️ pdfParse function attempt failed:', err.message);
+    }
+  }
+
+  throw new Error("We couldn't extract text from this document. Please try another file or paste your resume text below.");
+};
+
 // ═══════════════════════════════════════════════════════════
 // POST /api/roadmap/parse-document — Server-side PDF/DOCX/TXT/JSON Text Extraction
 // ═══════════════════════════════════════════════════════════
@@ -88,14 +122,19 @@ router.post('/parse-document', async (req, res) => {
 
     let extractedText = '';
 
-    const parsePdf = typeof pdfParse === 'function' ? pdfParse : (pdfParse.default || pdfParse);
-
     if (ext === 'pdf') {
-      const pdfData = await parsePdf(buffer);
-      extractedText = pdfData.text || '';
+      try {
+        extractedText = await parsePdfBuffer(buffer);
+      } catch (err) {
+        return res.status(422).json({ message: "We couldn't extract text from this document. Please try another file or paste your resume text below." });
+      }
     } else if (ext === 'docx') {
-      const docxData = await mammoth.extractRawText({ buffer });
-      extractedText = docxData.value || '';
+      try {
+        const docxData = await mammoth.extractRawText({ buffer });
+        extractedText = docxData.value || '';
+      } catch (err) {
+        return res.status(422).json({ message: "We couldn't extract text from this document. Please try another file or paste your resume text below." });
+      }
     } else if (ext === 'txt' || ext === 'md' || ext === 'json') {
       extractedText = buffer.toString('utf-8');
       if (ext === 'json') {
@@ -106,8 +145,7 @@ router.post('/parse-document', async (req, res) => {
       }
     } else {
       try {
-        const pdfData = await parsePdf(buffer);
-        extractedText = pdfData.text || buffer.toString('utf-8');
+        extractedText = await parsePdfBuffer(buffer);
       } catch (_) {
         extractedText = buffer.toString('utf-8');
       }
@@ -116,7 +154,7 @@ router.post('/parse-document', async (req, res) => {
     extractedText = extractedText.replace(/[\x00-\x09\x0B\x0C\x0E-\x1F]/g, ' ').trim();
 
     if (!extractedText || extractedText.length < 5) {
-      return res.status(422).json({ message: 'Could not extract readable text from this document. Please ensure it is not an image-only PDF.' });
+      return res.status(422).json({ message: "We couldn't extract readable text from this document. Please try another file or paste your resume text below." });
     }
 
     const wordCount = extractedText.split(/\s+/).length;
@@ -129,7 +167,7 @@ router.post('/parse-document', async (req, res) => {
     });
   } catch (err) {
     console.error('❌ Document parse error:', err.message);
-    res.status(500).json({ message: `Document extraction failed: ${err.message}` });
+    res.status(422).json({ message: "We couldn't extract text from this document. Please try another file or paste your resume text below." });
   }
 });
 
@@ -447,9 +485,8 @@ router.post('/analyze-resume', async (req, res) => {
       generatedSteps = generateSmartFallback(goal, user.level || 'intermediate', weeks);
     }
 
-    // Wipes ONLY Core Roadmap steps. Leaves Project Sprints completely untouched!
-    await RoadmapStep.deleteMany({ userId: req.user._id, roadmapType: 'core' });
-    await RoadmapStep.insertMany(generatedSteps.map((s, idx) => {
+    // Map and validate new core steps
+    const newCoreDocs = generatedSteps.map((s, idx) => {
       const dayNum = s.day || (idx + 1);
       const weekNum = s.week && s.week > 0 ? s.week : Math.ceil(dayNum / 7);
       const rawTasks = Array.isArray(s.tasks) && s.tasks.length > 0 ? s.tasks : [
@@ -467,17 +504,31 @@ router.post('/analyze-resume', async (req, res) => {
         context: s.context || `Resume Gap Optimization Day ${dayNum}`,
         completed: false,
         tasks: rawTasks.map((t, tidx) => ({
-          taskId: t.taskId || `w${weekNum}-d${dayNum}-t${tidx + 1}`,
+          taskId: typeof t === 'object' && t.taskId ? t.taskId : `w${weekNum}-d${dayNum}-t${tidx + 1}`,
           title: typeof t === 'string' ? t : (t.title || `Task ${tidx + 1}`),
           completed: false
         }))
       };
-    }));
+    });
+
+    // Save new core steps FIRST
+    const insertedDocs = await RoadmapStep.insertMany(newCoreDocs);
+    const newDocIds = insertedDocs.map(doc => doc._id);
+
+    // Remove old core steps ONLY after insertion succeeds (Leaves Project Sprints 100% untouched!)
+    await RoadmapStep.deleteMany({
+      userId: req.user._id,
+      roadmapType: 'core',
+      _id: { $nin: newDocIds }
+    });
 
     await User.findByIdAndUpdate(req.user._id, { currentRoadmapDay: 1 });
 
     return res.json({ success: true, message: 'Core roadmap optimized via resume analysis', count: generatedSteps.length });
-  } catch (err) { res.status(500).json({ message: err.message }); }
+  } catch (err) {
+    console.error('❌ Resume analysis error:', err.message);
+    res.status(500).json({ message: "We couldn't analyze your resume right now. Your existing roadmap is safe. Please try again." });
+  }
 });
 
 // ═══════════════════════════════════════════════════════════
