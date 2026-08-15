@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { ArrowRight, ChevronDown, ChevronUp, Sparkles, Clock, Target, Plus, CheckCircle2, Play, BookOpen, X, Check, Loader, Upload, FileText, FileCode } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { ArrowRight, ChevronDown, ChevronUp, Sparkles, Clock, Target, Plus, CheckCircle2, Play, BookOpen, X, Check, Loader, Upload, FileText, FileCode, Trash2, LayoutGrid, Compass } from 'lucide-react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { USER_PROFILE, CORE_GOALS, TIMELINES, LEVELS, getRoadmapByGoal, DSA_ROADMAP } from '../constants/userProfile';
 import api from '../utils/api';
 import { useAuth } from '../context/AuthContext';
@@ -31,7 +31,12 @@ const formatTaskTitle = (rawTitle) => {
 
 const Roadmap = () => {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { user, setUser } = useAuth();
+
+  // Active Tab State: 'core' | 'projects' | 'sprint_detail'
+  const initialTab = searchParams.get('tab') || (searchParams.get('project') ? 'sprint_detail' : 'core');
+  const [activeTab, setActiveTab] = useState(initialTab);
 
   // Goal Form State
   const [selectedGoal, setSelectedGoal] = useState(user?.goal || 'DATA STRUCTURES');
@@ -39,6 +44,15 @@ const Roadmap = () => {
   const [level, setLevel] = useState(user?.level || 'Basic / Beginner');
   const [showGoalModal, setShowGoalModal] = useState(false);
   const [loadingBackend, setLoadingBackend] = useState(true);
+
+  // Core Roadmap State
+  const [coreRoadmapData, setCoreRoadmapData] = useState(() => getRoadmapByGoal(selectedGoal, timeline, level));
+
+  // Project Sprints State
+  const [projectsList, setProjectsList] = useState([]);
+  const [activeProject, setActiveProject] = useState(null);
+  const [projectStepsData, setProjectStepsData] = useState([]);
+  const [loadingProjects, setLoadingProjects] = useState(false);
 
   // Resume Engine State
   const [showResumeModal, setShowResumeModal] = useState(false);
@@ -59,14 +73,13 @@ const Roadmap = () => {
   // Success Toast Banner
   const [successBanner, setSuccessBanner] = useState('');
 
-  // Active roadmap data generated dynamically for timeline (4, 8, 12 weeks), level, & domain
-  const [roadmapData, setRoadmapData] = useState(() => getRoadmapByGoal(selectedGoal, timeline, level));
   // Default expanded week
   const [expandedWeek, setExpandedWeek] = useState(1);
 
-  const fetchAndSetRoadmap = async () => {
+  // Fetch Core Roadmap
+  const fetchCoreRoadmap = async () => {
     try {
-      const steps = await api('/api/roadmap');
+      const steps = await api('/api/roadmap/core');
       if (Array.isArray(steps) && steps.length > 0) {
         const weekMap = {};
         steps.forEach(step => {
@@ -106,7 +119,6 @@ const Roadmap = () => {
           }
         });
 
-        // Compute actual week progress dynamically
         Object.values(weekMap).forEach(week => {
           const totalInWeek = week.days.length;
           const completedInWeek = week.days.filter(d => d.completed || d.status === 'Completed').length;
@@ -122,29 +134,80 @@ const Roadmap = () => {
 
         const transformed = Object.values(weekMap);
         if (transformed.length > 0) {
-          setRoadmapData(transformed);
+          setCoreRoadmapData(transformed);
         }
       }
     } catch (err) {
-      console.warn("Could not fetch roadmap:", err.message);
+      console.warn("Could not fetch core roadmap:", err.message);
+    }
+  };
+
+  // Fetch Projects List
+  const fetchProjectsList = async () => {
+    setLoadingProjects(true);
+    try {
+      const list = await api('/api/roadmap/projects');
+      if (Array.isArray(list)) {
+        setProjectsList(list);
+      }
+    } catch (err) {
+      console.warn("Could not fetch projects list:", err.message);
+    } finally {
+      setLoadingProjects(false);
+    }
+  };
+
+  // Fetch Specific Project Steps
+  const fetchProjectSteps = async (projectId) => {
+    try {
+      const data = await api(`/api/roadmap/projects/${projectId}`);
+      if (data && data.project && data.steps) {
+        setActiveProject(data.project);
+        setProjectStepsData(data.steps);
+        setActiveTab('sprint_detail');
+        setSearchParams({ project: projectId });
+      }
+    } catch (err) {
+      console.warn("Could not fetch project steps:", err.message);
+      setActiveTab('projects');
+      setSearchParams({ tab: 'projects' });
     }
   };
 
   useEffect(() => {
     setLoadingBackend(true);
-    fetchAndSetRoadmap().finally(() => {
+    Promise.all([fetchCoreRoadmap(), fetchProjectsList()]).finally(() => {
       setLoadingBackend(false);
     });
 
-    const handleUpdate = () => fetchAndSetRoadmap();
+    const urlProj = searchParams.get('project');
+    if (urlProj) {
+      fetchProjectSteps(urlProj);
+    }
+
+    const handleUpdate = () => {
+      fetchCoreRoadmap();
+      fetchProjectsList();
+      if (activeProject) fetchProjectSteps(activeProject.projectId);
+    };
+
     window.addEventListener('gdx_roadmap_updated', handleUpdate);
     return () => window.removeEventListener('gdx_roadmap_updated', handleUpdate);
   }, [selectedGoal, timeline, level]);
 
-  // Toggle a specific day's completion state
-  const toggleDayCompletion = async (dayNum, currentlyCompleted) => {
+  const handleTabSwitch = (tab) => {
+    setActiveTab(tab);
+    if (tab === 'core') {
+      setSearchParams({});
+    } else if (tab === 'projects') {
+      setSearchParams({ tab: 'projects' });
+    }
+  };
+
+  // Toggle Core Day Completion
+  const toggleCoreDayCompletion = async (dayNum, currentlyCompleted) => {
     const nextState = !currentlyCompleted;
-    setRoadmapData(prev => prev.map(week => ({
+    setCoreRoadmapData(prev => prev.map(week => ({
       ...week,
       days: week.days.map(d =>
         d.day === dayNum
@@ -153,13 +216,13 @@ const Roadmap = () => {
       )
     })));
     try {
-      await api(`/api/roadmap/${dayNum}/complete`, {
+      await api(`/api/roadmap/${dayNum}/complete?roadmapType=core`, {
         method: 'PATCH',
         body: JSON.stringify({ completed: nextState })
       });
       window.dispatchEvent(new CustomEvent('gdx_roadmap_updated'));
     } catch {
-      setRoadmapData(prev => prev.map(week => ({
+      setCoreRoadmapData(prev => prev.map(week => ({
         ...week,
         days: week.days.map(d =>
           d.day === dayNum
@@ -167,6 +230,42 @@ const Roadmap = () => {
             : d
         )
       })));
+    }
+  };
+
+  // Toggle Project Day Completion
+  const toggleProjectDayCompletion = async (dayNum, currentlyCompleted) => {
+    if (!activeProject) return;
+    const nextState = !currentlyCompleted;
+    setProjectStepsData(prev => prev.map(s => s.day === dayNum ? { ...s, completed: nextState } : s));
+
+    try {
+      await api(`/api/roadmap/${dayNum}/complete?roadmapType=project&projectId=${activeProject.projectId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ completed: nextState })
+      });
+      fetchProjectsList();
+      window.dispatchEvent(new CustomEvent('gdx_roadmap_updated'));
+    } catch {
+      setProjectStepsData(prev => prev.map(s => s.day === dayNum ? { ...s, completed: currentlyCompleted } : s));
+    }
+  };
+
+  // Delete Project Sprint
+  const handleDeleteProject = async (projectId, e) => {
+    if (e) e.stopPropagation();
+    try {
+      await api(`/api/roadmap/projects/${projectId}`, { method: 'DELETE' });
+      setProjectsList(prev => prev.filter(p => p.projectId !== projectId));
+      if (activeProject && activeProject.projectId === projectId) {
+        setActiveProject(null);
+        setActiveTab('projects');
+        setSearchParams({ tab: 'projects' });
+      }
+      setSuccessBanner('Project Sprint deleted successfully');
+      setTimeout(() => setSuccessBanner(''), 4000);
+    } catch (err) {
+      console.warn('Delete project error:', err.message);
     }
   };
 
@@ -189,7 +288,7 @@ const Roadmap = () => {
           try {
             const parsedObj = JSON.parse(content);
             content = typeof parsedObj === 'string' ? parsedObj : JSON.stringify(parsedObj, null, 2);
-          } catch (_) { /* use raw text */ }
+          } catch (_) {}
         }
         content = content.replace(/[\x00-\x09\x0B\x0C\x0E-\x1F]/g, ' ').trim();
         setResumeText(content);
@@ -241,7 +340,7 @@ const Roadmap = () => {
           try {
             const parsedObj = JSON.parse(content);
             content = typeof parsedObj === 'string' ? parsedObj : JSON.stringify(parsedObj, null, 2);
-          } catch (_) { /* use raw text */ }
+          } catch (_) {}
         }
         content = content.replace(/[\x00-\x09\x0B\x0C\x0E-\x1F]/g, ' ').trim();
         setAssignmentText(content);
@@ -276,6 +375,7 @@ const Roadmap = () => {
     }
   };
 
+  // Analyze Resume -> Updates CORE ROADMAP
   const handleAnalyzeResume = async (e) => {
     e.preventDefault();
     if (!resumeText || resumeText.trim().length < 5) {
@@ -289,12 +389,14 @@ const Roadmap = () => {
         method: 'POST',
         body: JSON.stringify({ resumeText: resumeText.trim() })
       });
-      await fetchAndSetRoadmap();
+      await fetchCoreRoadmap();
       window.dispatchEvent(new CustomEvent('gdx_roadmap_updated'));
       setShowResumeModal(false);
       setResumeText('');
       setResumeFileName('');
-      setSuccessBanner(res.message || 'Resume analyzed! Personalized gap-focused roadmap generated.');
+      setActiveTab('core');
+      setSearchParams({});
+      setSuccessBanner(res.message || 'Core Roadmap Updated: Personalized gap-focused roadmap generated.');
       setTimeout(() => setSuccessBanner(''), 8000);
     } catch (err) {
       setResumeError(err.message || 'Could not analyze resume. Please try again.');
@@ -303,6 +405,7 @@ const Roadmap = () => {
     }
   };
 
+  // Analyze Assignment -> Creates NEW PROJECT SPRINT
   const handleAnalyzeAssignment = async (e) => {
     e.preventDefault();
     if (!assignmentText || assignmentText.trim().length < 5) {
@@ -316,12 +419,20 @@ const Roadmap = () => {
         method: 'POST',
         body: JSON.stringify({ assignmentText: assignmentText.trim() })
       });
-      await fetchAndSetRoadmap();
+      await fetchProjectsList();
       window.dispatchEvent(new CustomEvent('gdx_roadmap_updated'));
       setShowAssignmentModal(false);
       setAssignmentText('');
       setAssignmentFileName('');
-      setSuccessBanner(res.message || 'Assignment deconstructed into a 7-Day Implementation Sprint!');
+
+      if (res.projectId) {
+        await fetchProjectSteps(res.projectId);
+      } else {
+        setActiveTab('projects');
+        setSearchParams({ tab: 'projects' });
+      }
+
+      setSuccessBanner(res.message || 'Project Sprint Created! Your 7-day implementation plan is ready.');
       setTimeout(() => setSuccessBanner(''), 8000);
     } catch (err) {
       setAssignmentError(err.message || 'Could not deconstruct assignment. Please try again.');
@@ -334,7 +445,7 @@ const Roadmap = () => {
     e.preventDefault();
     setLoadingBackend(true);
     const newRoadmap = getRoadmapByGoal(selectedGoal, timeline, level);
-    setRoadmapData(newRoadmap);
+    setCoreRoadmapData(newRoadmap);
     setExpandedWeek(1);
     setShowGoalModal(false);
 
@@ -348,6 +459,7 @@ const Roadmap = () => {
       if (setUser && user) {
         setUser({ ...user, goal: selectedGoal, level, timelineWeeks: weeksInt });
       }
+      await fetchCoreRoadmap();
     } catch {
       /* fallback gracefully */
     } finally {
@@ -359,7 +471,7 @@ const Roadmap = () => {
     navigate('/concept', {
       state: {
         day: dayItem.day,
-        domain: selectedGoal
+        domain: activeTab === 'sprint_detail' ? activeProject?.title : selectedGoal
       }
     });
   };
@@ -368,10 +480,10 @@ const Roadmap = () => {
     navigate('/mentor', {
       state: {
         dayTopic: dayItem.title,
-        prompt: dayItem.prompt || `Explain ${dayItem.title} for a ${level} level student studying ${selectedGoal}. Provide step-by-step logic, code, and key concepts.`,
+        prompt: dayItem.prompt || `Explain ${dayItem.title} step-by-step with production code and key architecture principles.`,
         duration: dayItem.duration,
         level: level,
-        goal: selectedGoal
+        goal: activeTab === 'sprint_detail' ? activeProject?.title : selectedGoal
       }
     });
   };
@@ -411,7 +523,7 @@ const Roadmap = () => {
               {level.toUpperCase()}
             </span>
             <span className="px-3 py-1 bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 rounded-full text-xs font-mono font-bold">
-              ⏱ {timeline} TIMELINE ({roadmapData.length * 7} DAYS TOTAL)
+              ⏱ {timeline} TIMELINE
             </span>
             <span className="px-3 py-1 bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 rounded-full text-xs font-mono font-bold">
               LIVE DATABASE
@@ -422,7 +534,7 @@ const Roadmap = () => {
             {selectedGoal}
           </h1>
           <p className="text-xs text-zinc-500 font-medium">
-            Personalized {roadmapData.length}-Week curriculum ({roadmapData.length * 7} Days) tailored for {level} level in {selectedGoal}.
+            GuideX Career Preparation & Implementation Sprint Architecture.
           </p>
         </div>
 
@@ -450,6 +562,53 @@ const Roadmap = () => {
         </div>
       </div>
 
+      {/* ROADMAP TYPE SWITCHER BAR */}
+      <div className="flex items-center justify-between gap-4 bg-zinc-900/90 dark:bg-zinc-900/90 p-2 rounded-2xl border border-zinc-800 shadow-md flex-wrap">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => handleTabSwitch('core')}
+            className={`px-5 py-2.5 rounded-xl text-xs font-extrabold font-mono transition-all flex items-center gap-2 cursor-pointer ${
+              activeTab === 'core'
+                ? 'bg-[#F5C542] text-zinc-950 shadow-pill'
+                : 'text-zinc-400 hover:text-white hover:bg-zinc-800/80'
+            }`}
+          >
+            <Compass size={15} />
+            <span>CORE ROADMAP</span>
+          </button>
+
+          <button
+            onClick={() => handleTabSwitch('projects')}
+            className={`px-5 py-2.5 rounded-xl text-xs font-extrabold font-mono transition-all flex items-center gap-2 cursor-pointer ${
+              activeTab === 'projects' || activeTab === 'sprint_detail'
+                ? 'bg-[#F5C542] text-zinc-950 shadow-pill'
+                : 'text-zinc-400 hover:text-white hover:bg-zinc-800/80'
+            }`}
+          >
+            <LayoutGrid size={15} />
+            <span>PROJECT SPRINTS</span>
+            {projectsList.length > 0 && (
+              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                activeTab === 'projects' || activeTab === 'sprint_detail' ? 'bg-zinc-950/20 text-zinc-950' : 'bg-zinc-800 text-amber-400'
+              }`}>
+                {projectsList.length}
+              </span>
+            )}
+          </button>
+        </div>
+
+        {activeTab === 'sprint_detail' && activeProject && (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => handleTabSwitch('projects')}
+              className="text-xs font-mono font-bold text-zinc-400 hover:text-white px-3 py-1.5 rounded-lg hover:bg-zinc-800 transition-colors"
+            >
+              ← Back to Projects
+            </button>
+          </div>
+        )}
+      </div>
+
       {/* AI Resume Gap Import Modal */}
       {showResumeModal && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
@@ -469,6 +628,10 @@ const Roadmap = () => {
                 <X size={18} />
               </button>
             </div>
+
+            <p className="text-xs text-zinc-500">
+              Analyzes your resume against your target goal ({selectedGoal}) and optimizes your <strong>CORE ROADMAP</strong>.
+            </p>
 
             {resumeError && (
               <div className="p-3.5 rounded-2xl bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs font-bold font-mono">
@@ -531,7 +694,7 @@ const Roadmap = () => {
                     ? 'Extracting Text from File...'
                     : resumeAnalyzing
                     ? 'Analyzing Skill Gaps via Gemini...'
-                    : 'Analyze Gaps & Re-generate Roadmap'}
+                    : 'Analyze Gaps & Re-generate Core Roadmap'}
                 </span>
               </button>
             </form>
@@ -558,6 +721,10 @@ const Roadmap = () => {
                 <X size={18} />
               </button>
             </div>
+
+            <p className="text-xs text-zinc-500">
+              Parses project requirements into a <strong>NEW 7-DAY PROJECT SPRINT</strong>. Leaves your Core Roadmap 100% untouched.
+            </p>
 
             {assignmentError && (
               <div className="p-3.5 rounded-2xl bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs font-bold font-mono">
@@ -717,222 +884,453 @@ const Roadmap = () => {
         </div>
       )}
 
-      {/* Roadmap notification banner */}
-      <div className="flex items-center justify-between gap-4 px-5 py-3.5 rounded-2xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/60 text-xs">
-        <div className="flex items-center gap-2">
-          <Sparkles size={15} className="text-amber-500 shrink-0" />
-          <span className="text-zinc-800 dark:text-zinc-200 font-medium">
-            <strong className="font-bold">{roadmapData.length}-Week Personal Roadmap Active:</strong> {roadmapData.length * 7} Unique Days generated for {selectedGoal} ({level}).
-          </span>
+      {/* VIEW 1: CORE ROADMAP */}
+      {activeTab === 'core' && (
+        <div className="space-y-5 animate-in fade-in duration-200">
+          <div className="flex items-center justify-between gap-4 px-5 py-3.5 rounded-2xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/60 text-xs">
+            <div className="flex items-center gap-2">
+              <Sparkles size={15} className="text-amber-500 shrink-0" />
+              <span className="text-zinc-800 dark:text-zinc-200 font-medium">
+                <strong className="font-bold">CORE ROADMAP:</strong> Long-term career preparation ({coreRoadmapData.length * 7} Days) for {selectedGoal}.
+              </span>
+            </div>
+          </div>
+
+          <div className="space-y-5">
+            {coreRoadmapData.map(week => {
+              const displayPhaseTitle = formatPhaseTitle(week.title, week.id);
+              const isWeekCompleted = week.progress === 100 || week.status === 'Completed';
+
+              return (
+                <div
+                  key={week.id}
+                  className={`bg-white dark:bg-zinc-900 border rounded-3xl overflow-hidden shadow-sm transition-all ${
+                    week.current
+                      ? 'border-amber-400/80 dark:border-amber-500/60 ring-1 ring-amber-400/30'
+                      : isWeekCompleted
+                      ? 'border-emerald-200 dark:border-emerald-900/40'
+                      : 'border-zinc-200/80 dark:border-zinc-800'
+                  }`}
+                >
+                  <div
+                    onClick={() => toggleWeek(week.id)}
+                    role="button"
+                    tabIndex={0}
+                    aria-expanded={expandedWeek === week.id}
+                    aria-label={`Toggle ${week.num}`}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') toggleWeek(week.id); }}
+                    className="p-5 sm:p-6 flex items-center justify-between gap-4 cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800/40 transition-colors select-none"
+                  >
+                    <div className="flex items-center gap-4 min-w-0">
+                      <div className={`w-9 h-9 rounded-2xl flex items-center justify-center font-mono text-xs font-extrabold shrink-0 ${
+                        isWeekCompleted
+                          ? 'bg-emerald-500 text-white'
+                          : week.current
+                          ? 'bg-[#F5C542] text-zinc-950 shadow-pill'
+                          : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-400'
+                      }`}>
+                        {isWeekCompleted ? '✓' : week.id}
+                      </div>
+
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2.5 flex-wrap">
+                          <span className="text-xs font-mono font-bold text-amber-500 uppercase tracking-widest">
+                            {week.num} · {week.duration}
+                          </span>
+                          {week.current && (
+                            <span className="text-[9px] font-mono font-extrabold text-amber-900 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/60 px-2.5 py-0.5 rounded-full border border-amber-300 dark:border-amber-800">
+                              ● CURRENT WEEK
+                            </span>
+                          )}
+                          {isWeekCompleted && (
+                            <span className="text-[9px] font-mono font-extrabold text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/60 px-2.5 py-0.5 rounded-full border border-emerald-300 dark:border-emerald-800">
+                              ✓ COMPLETED
+                            </span>
+                          )}
+                        </div>
+                        <h3 className="text-base sm:text-lg font-extrabold font-display text-zinc-900 dark:text-white mt-0.5 truncate">
+                          {displayPhaseTitle}
+                        </h3>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-4 shrink-0">
+                      <div className="hidden sm:flex items-center gap-2.5">
+                        <div className="w-24 h-1.5 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
+                          <div className={`h-full rounded-full transition-all ${isWeekCompleted ? 'bg-emerald-500' : 'bg-[#F5C542]'}`} style={{ width: `${week.progress}%` }} />
+                        </div>
+                        <span className="text-xs font-mono text-zinc-500 dark:text-zinc-400 font-bold w-10 text-right">{week.progress}%</span>
+                      </div>
+
+                      <div className="p-2 rounded-full text-zinc-400">
+                        {expandedWeek === week.id ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                      </div>
+                    </div>
+                  </div>
+
+                  {expandedWeek === week.id && (
+                    <div className="border-t border-zinc-100 dark:border-zinc-800/80 p-5 sm:p-6 bg-zinc-50/50 dark:bg-zinc-950/40 space-y-4">
+                      <div className="text-xs text-zinc-500 leading-relaxed font-medium">
+                        <strong className="text-zinc-800 dark:text-zinc-200">Why this week matters:</strong> {week.whyMatters}
+                      </div>
+
+                      <div className="space-y-3 pt-2">
+                        <span className="text-[10px] font-mono font-bold text-zinc-400 uppercase tracking-widest block">
+                          DAILY SCHEDULE ({week.days.length} DAYS)
+                        </span>
+
+                        <div className="divide-y divide-zinc-100 dark:divide-zinc-800/80 rounded-2xl border border-zinc-200/80 dark:border-zinc-800 bg-white dark:bg-zinc-900 overflow-hidden">
+                          {week.days.map((dayItem) => {
+                            const isDone = dayItem.status === 'Completed';
+                            const formatted = formatTaskTitle(dayItem.title);
+
+                            return (
+                              <div
+                                key={dayItem.day}
+                                className={`p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 transition-colors ${
+                                  dayItem.current ? 'bg-amber-50/40 dark:bg-amber-950/20' : 'hover:bg-zinc-50 dark:hover:bg-zinc-800/40'
+                                }`}
+                              >
+                                <div className="flex items-start gap-3 flex-1 min-w-0">
+                                  <label
+                                    htmlFor={`core-day-${dayItem.day}`}
+                                    className="flex items-center mt-0.5 cursor-pointer select-none shrink-0 group"
+                                  >
+                                    <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${
+                                      isDone
+                                        ? 'bg-emerald-500 border-emerald-500'
+                                        : 'border-zinc-300 dark:border-zinc-600 group-hover:border-amber-500'
+                                    }`}>
+                                      {isDone && (
+                                        <svg width="11" height="9" viewBox="0 0 11 9" fill="none">
+                                          <path d="M1 4L4 7L10 1" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                        </svg>
+                                      )}
+                                    </div>
+                                    <input
+                                      id={`core-day-${dayItem.day}`}
+                                      type="checkbox"
+                                      checked={isDone}
+                                      onChange={() => toggleCoreDayCompletion(dayItem.day, isDone)}
+                                      className="sr-only"
+                                    />
+                                  </label>
+
+                                  <div className="space-y-1 min-w-0">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <span className={`text-[9px] font-mono font-bold px-2 py-0.5 rounded-full ${
+                                        isDone
+                                          ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400'
+                                          : dayItem.current
+                                          ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300'
+                                          : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500'
+                                      }`}>
+                                        {isDone ? '✓ Completed' : dayItem.current ? "● Today's Topic" : 'Upcoming'}
+                                      </span>
+
+                                      {formatted.subTag && (
+                                        <span className="text-[10px] font-mono font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-2 py-0.5 rounded-full">
+                                          {formatted.subTag}
+                                        </span>
+                                      )}
+
+                                      <span className="text-[10px] font-mono text-zinc-400 flex items-center gap-1">
+                                        <Clock size={11} className="inline text-zinc-400" />
+                                        {dayItem.duration}
+                                      </span>
+                                    </div>
+
+                                    <h4 className={`text-sm font-bold font-display transition-colors ${
+                                      isDone ? 'text-zinc-400 dark:text-zinc-500 line-through' : 'text-zinc-900 dark:text-white'
+                                    }`}>
+                                      {formatted.mainTitle}
+                                    </h4>
+
+                                    <p className="text-xs text-zinc-500 leading-relaxed font-medium line-clamp-2">
+                                      {dayItem.desc}
+                                    </p>
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                                  <button
+                                    onClick={() => openConcept(dayItem)}
+                                    className="bg-[#F5C542] hover:bg-[#E5B532] text-zinc-950 font-bold text-xs px-3.5 py-2 rounded-full transition-all inline-flex items-center gap-1.5 shadow-pill cursor-pointer"
+                                  >
+                                    <BookOpen size={13} />
+                                    <span>Daily Concept</span>
+                                  </button>
+
+                                  <button
+                                    onClick={() => explainWithAI(dayItem)}
+                                    className="bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 font-bold text-xs px-3.5 py-2 rounded-full hover:bg-[#F5C542] hover:text-zinc-950 transition-all inline-flex items-center gap-1.5 shadow-sm cursor-pointer"
+                                  >
+                                    <Sparkles size={13} className="text-[#F5C542] dark:text-amber-600" />
+                                    <span>Explain with AI</span>
+                                  </button>
+
+                                  <button
+                                    onClick={() => startPractice(dayItem)}
+                                    className="bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-200 font-bold text-xs px-3 py-2 rounded-full transition-all inline-flex items-center gap-1 cursor-pointer"
+                                  >
+                                    <span>Practice</span>
+                                    <ArrowRight size={13} />
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* DYNAMIC MULTI-WEEK ROADMAP TIMELINE */}
-      <div className="space-y-5">
-        {roadmapData.map(week => {
-          const displayPhaseTitle = formatPhaseTitle(week.title, week.id);
-          const isWeekCompleted = week.progress === 100 || week.status === 'Completed';
+      {/* VIEW 2: PROJECT SPRINTS LIST */}
+      {activeTab === 'projects' && (
+        <div className="space-y-6 animate-in fade-in duration-200">
+          <div className="flex items-center justify-between gap-4 bg-white dark:bg-zinc-900 p-6 rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-sm flex-wrap">
+            <div>
+              <span className="text-xs font-mono font-bold text-amber-500 uppercase tracking-widest block">PROJECT SPRINTS</span>
+              <h2 className="text-xl font-extrabold font-display text-zinc-900 dark:text-white mt-1">
+                Implementation Sprints ({projectsList.length})
+              </h2>
+              <p className="text-xs text-zinc-500 mt-1">
+                Short-term 7-day implementation plans generated from assignment specifications.
+              </p>
+            </div>
 
-          return (
-            <div
-              key={week.id}
-              className={`bg-white dark:bg-zinc-900 border rounded-3xl overflow-hidden shadow-sm transition-all ${
-                week.current
-                  ? 'border-amber-400/80 dark:border-amber-500/60 ring-1 ring-amber-400/30'
-                  : isWeekCompleted
-                  ? 'border-emerald-200 dark:border-emerald-900/40'
-                  : 'border-zinc-200/80 dark:border-zinc-800'
-              }`}
+            <button
+              onClick={() => { setAssignmentError(''); setShowAssignmentModal(true); }}
+              className="bg-[#F5C542] hover:bg-[#E5B532] text-zinc-950 font-extrabold text-xs py-3 px-5 rounded-2xl shadow-pill transition-all flex items-center gap-2 cursor-pointer"
             >
-              {/* Week Header */}
-              <div
-                onClick={() => toggleWeek(week.id)}
-                role="button"
-                tabIndex={0}
-                aria-expanded={expandedWeek === week.id}
-                aria-label={`Toggle ${week.num}`}
-                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') toggleWeek(week.id); }}
-                className="p-5 sm:p-6 flex items-center justify-between gap-4 cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800/40 transition-colors select-none"
+              <Plus size={16} /> + New Project Sprint
+            </button>
+          </div>
+
+          {loadingProjects ? (
+            <div className="p-12 text-center text-zinc-500 text-xs font-mono flex items-center justify-center gap-2">
+              <Loader size={18} className="animate-spin text-amber-500" /> Loading Project Sprints...
+            </div>
+          ) : projectsList.length === 0 ? (
+            <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl p-12 text-center space-y-4">
+              <div className="w-12 h-12 bg-amber-100 dark:bg-amber-950/60 text-amber-600 rounded-2xl flex items-center justify-center mx-auto">
+                <FileCode size={24} />
+              </div>
+              <div>
+                <h3 className="text-base font-extrabold text-zinc-900 dark:text-white">No Project Sprints Created Yet</h3>
+                <p className="text-xs text-zinc-500 max-w-md mx-auto mt-1">
+                  Upload an assignment specification or paste project guidelines to generate a dedicated 7-day implementation sprint.
+                </p>
+              </div>
+              <button
+                onClick={() => { setAssignmentError(''); setShowAssignmentModal(true); }}
+                className="bg-[#F5C542] hover:bg-[#E5B532] text-zinc-950 font-bold text-xs py-3 px-5 rounded-full shadow-pill transition-all inline-flex items-center gap-2 cursor-pointer"
               >
-                <div className="flex items-center gap-4 min-w-0">
-                  <div className={`w-9 h-9 rounded-2xl flex items-center justify-center font-mono text-xs font-extrabold shrink-0 ${
-                    isWeekCompleted
-                      ? 'bg-emerald-500 text-white'
-                      : week.current
-                      ? 'bg-[#F5C542] text-zinc-950 shadow-pill'
-                      : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-400'
-                  }`}>
-                    {isWeekCompleted ? '✓' : week.id}
-                  </div>
+                <Plus size={15} /> Create First Project Sprint
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {projectsList.map((proj) => {
+                const pct = Math.round(((proj.completedDays || 0) / (proj.totalDays || 7)) * 100);
+                const isDone = proj.completed || pct === 100;
 
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2.5 flex-wrap">
-                      <span className="text-xs font-mono font-bold text-amber-500 uppercase tracking-widest">
-                        {week.num} · {week.duration}
-                      </span>
-                      {week.current && (
-                        <span className="text-[9px] font-mono font-extrabold text-amber-900 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/60 px-2.5 py-0.5 rounded-full border border-amber-300 dark:border-amber-800">
-                          ● CURRENT WEEK
-                        </span>
-                      )}
-                      {isWeekCompleted && (
-                        <span className="text-[9px] font-mono font-extrabold text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/60 px-2.5 py-0.5 rounded-full border border-emerald-300 dark:border-emerald-800">
-                          ✓ COMPLETED
-                        </span>
-                      )}
+                return (
+                  <div
+                    key={proj.projectId}
+                    onClick={() => fetchProjectSteps(proj.projectId)}
+                    className="bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 hover:border-amber-400 dark:hover:border-amber-500/80 rounded-3xl p-6 shadow-sm hover:shadow-md transition-all cursor-pointer space-y-4 group relative"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="space-y-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-[10px] font-mono font-bold text-amber-500 bg-amber-50 dark:bg-amber-950/60 px-2.5 py-0.5 rounded-full border border-amber-200 dark:border-amber-800">
+                            PROJECT SPRINT · 7 DAYS
+                          </span>
+                          {isDone ? (
+                            <span className="text-[10px] font-mono font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-full">
+                              ✓ COMPLETED
+                            </span>
+                          ) : (
+                            <span className="text-[10px] font-mono font-bold text-zinc-500 bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 rounded-full">
+                              ● IN PROGRESS
+                            </span>
+                          )}
+                        </div>
+                        <h3 className="text-base font-extrabold font-display text-zinc-900 dark:text-white group-hover:text-amber-500 transition-colors truncate">
+                          {proj.title}
+                        </h3>
+                      </div>
+
+                      <button
+                        onClick={(e) => handleDeleteProject(proj.projectId, e)}
+                        className="p-2 text-zinc-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-xl transition-colors cursor-pointer shrink-0"
+                        title="Delete Project Sprint"
+                      >
+                        <Trash2 size={16} />
+                      </button>
                     </div>
-                    <h3 className="text-base sm:text-lg font-extrabold font-display text-zinc-900 dark:text-white mt-0.5 truncate">
-                      {displayPhaseTitle}
-                    </h3>
-                  </div>
-                </div>
 
-                <div className="flex items-center gap-4 shrink-0">
-                  <div className="hidden sm:flex items-center gap-2.5">
-                    <div className="w-24 h-1.5 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
-                      <div className={`h-full rounded-full transition-all ${isWeekCompleted ? 'bg-emerald-500' : 'bg-[#F5C542]'}`} style={{ width: `${week.progress}%` }} />
+                    <p className="text-xs text-zinc-500 line-clamp-2 leading-relaxed font-medium">
+                      {proj.description || 'Custom 7-day technical implementation plan.'}
+                    </p>
+
+                    <div className="space-y-1.5 pt-2">
+                      <div className="flex items-center justify-between text-xs font-mono">
+                        <span className="text-zinc-500 font-bold">Progress</span>
+                        <span className="text-zinc-900 dark:text-white font-extrabold">{proj.completedDays || 0} / 7 Days ({pct}%)</span>
+                      </div>
+                      <div className="w-full h-2 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
+                        <div className={`h-full rounded-full transition-all ${isDone ? 'bg-emerald-500' : 'bg-[#F5C542]'}`} style={{ width: `${pct}%` }} />
+                      </div>
                     </div>
-                    <span className="text-xs font-mono text-zinc-500 dark:text-zinc-400 font-bold w-10 text-right">{week.progress}%</span>
-                  </div>
 
-                  <div className="p-2 rounded-full text-zinc-400">
-                    {expandedWeek === week.id ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                    <div className="pt-2 flex items-center justify-between text-xs font-bold text-amber-500 group-hover:translate-x-0.5 transition-transform">
+                      <span>Open Sprint Schedule →</span>
+                      <ArrowRight size={14} />
+                    </div>
                   </div>
-                </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* VIEW 3: ACTIVE PROJECT SPRINT DETAIL */}
+      {activeTab === 'sprint_detail' && activeProject && (
+        <div className="space-y-6 animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-zinc-900 border border-amber-400/80 dark:border-amber-500/60 rounded-3xl p-6 md:p-8 shadow-sm space-y-3">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div className="flex items-center gap-2">
+                <span className="px-3 py-1 bg-amber-100 dark:bg-amber-950/60 text-amber-900 dark:text-amber-300 rounded-full text-xs font-mono font-bold">
+                  PROJECT SPRINT (7 DAYS)
+                </span>
+                <span className="px-3 py-1 bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 rounded-full text-xs font-mono font-bold">
+                  ASSIGNMENT PARSER
+                </span>
               </div>
 
-              {/* Week Content (Day-by-Day Topics) */}
-              {expandedWeek === week.id && (
-                <div className="border-t border-zinc-100 dark:border-zinc-800/80 p-5 sm:p-6 bg-zinc-50/50 dark:bg-zinc-950/40 space-y-4">
-                  <div className="text-xs text-zinc-500 leading-relaxed font-medium">
-                    <strong className="text-zinc-800 dark:text-zinc-200">Why this week matters:</strong> {week.whyMatters}
-                  </div>
+              <button
+                onClick={() => handleTabSwitch('projects')}
+                className="text-xs font-mono font-bold text-amber-600 dark:text-amber-400 hover:underline cursor-pointer"
+              >
+                ← Switch to Project List
+              </button>
+            </div>
 
-                  {/* Day-by-Day List */}
-                  <div className="space-y-3 pt-2">
-                    <span className="text-[10px] font-mono font-bold text-zinc-400 uppercase tracking-widest block">
-                      DAILY SCHEDULE ({week.days.length} DAYS)
-                    </span>
+            <h2 className="text-2xl md:text-3xl font-extrabold font-display text-zinc-900 dark:text-white">
+              {activeProject.title}
+            </h2>
+            <p className="text-xs text-zinc-500 font-medium">
+              {activeProject.description || '7-Day Implementation Sprint generated from project assignment brief.'}
+            </p>
+          </div>
 
-                    <div className="divide-y divide-zinc-100 dark:divide-zinc-800/80 rounded-2xl border border-zinc-200/80 dark:border-zinc-800 bg-white dark:bg-zinc-900 overflow-hidden">
-                      {week.days.map((dayItem) => {
-                        const isDone = dayItem.status === 'Completed';
-                        const formatted = formatTaskTitle(dayItem.title);
+          <div className="space-y-3">
+            <span className="text-xs font-mono font-bold text-zinc-400 uppercase tracking-widest block">
+              7-DAY SPRINT SCHEDULE ({projectStepsData.length} DAYS)
+            </span>
 
-                        return (
-                          <div
-                            key={dayItem.day}
-                            className={`p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 transition-colors ${
-                              dayItem.current ? 'bg-amber-50/40 dark:bg-amber-950/20' : 'hover:bg-zinc-50 dark:hover:bg-zinc-800/40'
-                            }`}
-                          >
-                            {/* CHECKBOX + DAY INFO */}
-                            <div className="flex items-start gap-3 flex-1 min-w-0">
-                              {/* NATIVE CHECKBOX */}
-                              <label
-                                htmlFor={`roadmap-day-${dayItem.day}`}
-                                className="flex items-center mt-0.5 cursor-pointer select-none shrink-0 group"
-                                title={isDone ? 'Mark task as incomplete' : 'Mark task as complete'}
-                              >
-                                <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${
-                                  isDone
-                                    ? 'bg-emerald-500 border-emerald-500'
-                                    : 'border-zinc-300 dark:border-zinc-600 group-hover:border-amber-500'
-                                }`}>
-                                  {isDone && (
-                                    <svg width="11" height="9" viewBox="0 0 11 9" fill="none">
-                                      <path d="M1 4L4 7L10 1" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                                    </svg>
-                                  )}
-                                </div>
-                                <input
-                                  id={`roadmap-day-${dayItem.day}`}
-                                  type="checkbox"
-                                  checked={isDone}
-                                  onChange={() => toggleDayCompletion(dayItem.day, isDone)}
-                                  className="sr-only"
-                                />
-                              </label>
+            <div className="divide-y divide-zinc-100 dark:divide-zinc-800/80 rounded-3xl border border-zinc-200/80 dark:border-zinc-800 bg-white dark:bg-zinc-900 overflow-hidden shadow-sm">
+              {projectStepsData.map((step) => {
+                const isDone = Boolean(step.completed);
+                const formatted = formatTaskTitle(step.dayName);
 
-                              <div className="space-y-1 min-w-0">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <span className={`text-[9px] font-mono font-bold px-2 py-0.5 rounded-full ${
-                                    isDone
-                                      ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400'
-                                      : dayItem.current
-                                      ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300'
-                                      : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500'
-                                  }`}>
-                                    {isDone ? '✓ Completed' : dayItem.current ? "● Today's Topic" : 'Upcoming'}
-                                  </span>
+                return (
+                  <div
+                    key={step._id || step.day}
+                    className={`p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 transition-colors ${
+                      isDone ? 'bg-emerald-50/20 dark:bg-emerald-950/10' : 'hover:bg-zinc-50 dark:hover:bg-zinc-800/40'
+                    }`}
+                  >
+                    <div className="flex items-start gap-3 flex-1 min-w-0">
+                      <label
+                        htmlFor={`project-day-${step.day}`}
+                        className="flex items-center mt-1 cursor-pointer select-none shrink-0 group"
+                      >
+                        <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${
+                          isDone
+                            ? 'bg-emerald-500 border-emerald-500'
+                            : 'border-zinc-300 dark:border-zinc-600 group-hover:border-amber-500'
+                        }`}>
+                          {isDone && (
+                            <svg width="11" height="9" viewBox="0 0 11 9" fill="none">
+                              <path d="M1 4L4 7L10 1" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                            </svg>
+                          )}
+                        </div>
+                        <input
+                          id={`project-day-${step.day}`}
+                          type="checkbox"
+                          checked={isDone}
+                          onChange={() => toggleProjectDayCompletion(step.day, isDone)}
+                          className="sr-only"
+                        />
+                      </label>
 
-                                  {formatted.subTag && (
-                                    <span className="text-[10px] font-mono font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-2 py-0.5 rounded-full">
-                                      {formatted.subTag}
-                                    </span>
-                                  )}
+                      <div className="space-y-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-[10px] font-mono font-bold text-amber-500 bg-amber-50 dark:bg-amber-950/60 px-2.5 py-0.5 rounded-full border border-amber-200 dark:border-amber-800">
+                            SPRINT DAY {step.day}
+                          </span>
+                          {isDone && (
+                            <span className="text-[10px] font-mono font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-full">
+                              ✓ COMPLETED
+                            </span>
+                          )}
+                        </div>
 
-                                  <span className="text-[10px] font-mono text-zinc-400 flex items-center gap-1">
-                                    <Clock size={11} className="inline text-zinc-400" />
-                                    {dayItem.duration}
-                                  </span>
-                                </div>
+                        <h4 className={`text-base font-extrabold font-display transition-colors ${
+                          isDone ? 'text-zinc-400 dark:text-zinc-500 line-through' : 'text-zinc-900 dark:text-white'
+                        }`}>
+                          {formatted.mainTitle}
+                        </h4>
 
-                                <h4 className={`text-sm font-bold font-display transition-colors ${
-                                  isDone ? 'text-zinc-400 dark:text-zinc-500 line-through' : 'text-zinc-900 dark:text-white'
-                                }`} title={dayItem.title}>
-                                  {formatted.mainTitle}
-                                </h4>
+                        <p className="text-xs text-zinc-500 leading-relaxed font-medium">
+                          {step.context || (step.tasks && step.tasks[0]?.title) || 'Sprint Day implementation objective.'}
+                        </p>
+                      </div>
+                    </div>
 
-                                <p className="text-xs text-zinc-500 leading-relaxed font-medium line-clamp-2">
-                                  {dayItem.desc}
-                                </p>
-                              </div>
-                            </div>
+                    <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                      <button
+                        onClick={() => openConcept({ day: step.day, title: step.dayName })}
+                        className="bg-[#F5C542] hover:bg-[#E5B532] text-zinc-950 font-bold text-xs px-3.5 py-2 rounded-full transition-all inline-flex items-center gap-1.5 shadow-pill cursor-pointer"
+                      >
+                        <BookOpen size={13} />
+                        <span>Daily Concept</span>
+                      </button>
 
-                            {/* Actions with visual hierarchy */}
-                            <div className="flex items-center gap-2 shrink-0 flex-wrap">
-                              {/* Primary Action: Daily Concept */}
-                              <button
-                                onClick={() => openConcept(dayItem)}
-                                className="bg-[#F5C542] hover:bg-[#E5B532] text-zinc-950 font-bold text-xs px-3.5 py-2 rounded-full transition-all inline-flex items-center gap-1.5 shadow-pill cursor-pointer"
-                                title="Open Daily Concept Module for this Day"
-                              >
-                                <BookOpen size={13} />
-                                <span>Daily Concept</span>
-                              </button>
+                      <button
+                        onClick={() => explainWithAI({ title: step.dayName, duration: '45 min' })}
+                        className="bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 font-bold text-xs px-3.5 py-2 rounded-full hover:bg-[#F5C542] hover:text-zinc-950 transition-all inline-flex items-center gap-1.5 shadow-sm cursor-pointer"
+                      >
+                        <Sparkles size={13} className="text-[#F5C542] dark:text-amber-600" />
+                        <span>Explain with AI</span>
+                      </button>
 
-                              {/* Secondary Action: Explain with AI */}
-                              <button
-                                onClick={() => explainWithAI(dayItem)}
-                                className="bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 font-bold text-xs px-3.5 py-2 rounded-full hover:bg-[#F5C542] hover:text-zinc-950 transition-all inline-flex items-center gap-1.5 shadow-sm cursor-pointer"
-                                title="Ask AI Mentor to explain this day's topic"
-                              >
-                                <Sparkles size={13} className="text-[#F5C542] dark:text-amber-600" />
-                                <span>Explain with AI</span>
-                              </button>
-
-                              {/* Tertiary Action: Practice */}
-                              <button
-                                onClick={() => startPractice(dayItem)}
-                                className="bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-200 font-bold text-xs px-3 py-2 rounded-full transition-all inline-flex items-center gap-1 cursor-pointer"
-                                title="Start Practice Timer"
-                              >
-                                <span>Practice</span>
-                                <ArrowRight size={13} />
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      })}
+                      <button
+                        onClick={() => startPractice({ title: step.dayName, duration: '45 min' })}
+                        className="bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-200 font-bold text-xs px-3 py-2 rounded-full transition-all inline-flex items-center gap-1 cursor-pointer"
+                      >
+                        <span>Practice</span>
+                        <ArrowRight size={13} />
+                      </button>
                     </div>
                   </div>
-                </div>
-              )}
+                );
+              })}
             </div>
-          );
-        })}
-      </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

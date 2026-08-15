@@ -1,7 +1,10 @@
 import mongoose from 'mongoose';
 
 const roadmapStepSchema = new mongoose.Schema({
-  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+  roadmapType: { type: String, enum: ['core', 'project'], default: 'core', index: true },
+  projectId: { type: String, default: null, index: true },
+  projectName: { type: String, default: null },
   week: { type: Number, default: 1 },
   day: { type: Number, default: 1 },
   phaseName: { type: String, default: 'Module' },

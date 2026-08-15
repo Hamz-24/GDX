@@ -1,6 +1,7 @@
 import express from 'express';
 import protect from '../middleware/auth.js';
 import RoadmapStep from '../models/RoadmapStep.js';
+import Project from '../models/Project.js';
 import User from '../models/User.js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { createRequire } from 'module';
@@ -19,6 +20,58 @@ const getGenAI = () => {
   return _genAI;
 };
 
+// ─── DATA MIGRATION HOOK ───
+const runMigration = async (userId) => {
+  try {
+    await RoadmapStep.updateMany(
+      { userId, roadmapType: { $exists: false } },
+      { $set: { roadmapType: 'core', projectId: null, projectName: null } }
+    );
+
+    const legacyProjectSteps = await RoadmapStep.find({ userId, phaseName: 'Project Sprint', roadmapType: 'core' });
+    if (legacyProjectSteps.length > 0) {
+      const legacyProjectId = 'proj_legacy_sprint';
+      const legacyTitle = 'Project Sprint';
+      await RoadmapStep.updateMany(
+        { userId, phaseName: 'Project Sprint', roadmapType: 'core' },
+        { $set: { roadmapType: 'project', projectId: legacyProjectId, projectName: legacyTitle } }
+      );
+      const existingProj = await Project.findOne({ userId, projectId: legacyProjectId });
+      if (!existingProj) {
+        await Project.create({
+          userId,
+          projectId: legacyProjectId,
+          title: legacyTitle,
+          description: 'Legacy 7-Day Implementation Sprint',
+          totalDays: 7,
+          completedDays: legacyProjectSteps.filter(s => s.completed).length,
+          completed: legacyProjectSteps.every(s => s.completed)
+        });
+      }
+    }
+  } catch (err) {
+    console.warn('⚠️ Migration warning:', err.message);
+  }
+};
+
+// ─── HELPER: EXTRACT PROJECT TITLE ───
+const extractProjectTitle = (text) => {
+  if (!text) return 'Project Sprint';
+  const clean = text.trim();
+  const firstLine = clean.split('\n')[0].replace(/^[#*-\s]+/, '').trim();
+  if (firstLine.length >= 4 && firstLine.length <= 45 && !firstLine.toLowerCase().startsWith('make') && !firstLine.toLowerCase().startsWith('build')) {
+    return firstLine;
+  }
+  const lower = clean.toLowerCase();
+  if (lower.includes('hospital') || lower.includes('bill')) return 'Hospital Bill Duplicate Checker';
+  if (lower.includes('recommendation') || lower.includes('e-commerce')) return 'E-Commerce Recommendation System';
+  if (lower.includes('trading') || lower.includes('stock') || lower.includes('financial')) return 'Trading Analytics Dashboard';
+  if (lower.includes('chat') || lower.includes('messaging') || lower.includes('socket')) return 'Real-Time Messaging Engine';
+
+  const words = clean.split(/\s+/).slice(0, 4).join(' ');
+  return words.length > 35 ? words.substring(0, 32) + '...' : words;
+};
+
 // ═══════════════════════════════════════════════════════════
 // POST /api/roadmap/parse-document — Server-side PDF/DOCX/TXT/JSON Text Extraction
 // ═══════════════════════════════════════════════════════════
@@ -35,8 +88,10 @@ router.post('/parse-document', async (req, res) => {
 
     let extractedText = '';
 
+    const parsePdf = typeof pdfParse === 'function' ? pdfParse : (pdfParse.default || pdfParse);
+
     if (ext === 'pdf') {
-      const pdfData = await pdfParse(buffer);
+      const pdfData = await parsePdf(buffer);
       extractedText = pdfData.text || '';
     } else if (ext === 'docx') {
       const docxData = await mammoth.extractRawText({ buffer });
@@ -47,13 +102,11 @@ router.post('/parse-document', async (req, res) => {
         try {
           const parsedObj = JSON.parse(extractedText);
           extractedText = typeof parsedObj === 'string' ? parsedObj : JSON.stringify(parsedObj, null, 2);
-        } catch (_) {
-          /* use raw UTF-8 string */
-        }
+        } catch (_) {}
       }
     } else {
       try {
-        const pdfData = await pdfParse(buffer);
+        const pdfData = await parsePdf(buffer);
         extractedText = pdfData.text || buffer.toString('utf-8');
       } catch (_) {
         extractedText = buffer.toString('utf-8');
@@ -171,40 +224,25 @@ export const generateAIContent = async (prompt) => {
 };
 
 // ═══════════════════════════════════════════════════════════
-// GET /api/roadmap — Generate with Gemini or return cached
+// GET /api/roadmap & GET /api/roadmap/core — Fetch Core Roadmap
 // ═══════════════════════════════════════════════════════════
 router.get('/', async (req, res) => {
   try {
-    try { await RoadmapStep.collection.dropIndex('userId_1_day_1'); } catch (_) {}
+    await runMigration(req.user._id);
 
-    let steps = await RoadmapStep.find({ userId: req.user._id }).sort({ week: 1, day: 1 });
-    
-    let needsSave = false;
-    for (const s of steps) {
-      const correctWeek = Math.ceil((s.day || 1) / 7);
-      if (s.week !== correctWeek) {
-        s.week = correctWeek;
-        await RoadmapStep.updateOne({ _id: s._id }, { $set: { week: correctWeek } });
-        needsSave = true;
-      }
-    }
-    if (needsSave) {
-      steps = await RoadmapStep.find({ userId: req.user._id }).sort({ week: 1, day: 1 });
-    }
+    let steps = await RoadmapStep.find({ userId: req.user._id, roadmapType: 'core' }).sort({ week: 1, day: 1 });
 
     const user = await User.findById(req.user._id);
     const weeks = user ? (user.timelineWeeks || 4) : 4;
-    const expectedTotalDays = weeks * 7;
-    
-    // If roadmap steps exist (including 7-day sprints), return them directly!
+
     if (steps.length === 0) {
       const goal = user?.goal || 'DATA STRUCTURES';
       const level = user?.level || 'intermediate';
 
-      console.log(`🧠 Generating AI roadmap for "${goal}" (${weeks} weeks, ${level} level)...`);
+      console.log(`🧠 Generating Core AI roadmap for "${goal}" (${weeks} weeks, ${level} level)...`);
       const prompt = buildRoadmapPrompt(goal, level, weeks);
       const generatedSteps = await generateAIContent(prompt);
-      
+
       if (generatedSteps && Array.isArray(generatedSteps) && generatedSteps.length > 0) {
         await RoadmapStep.insertMany(
           generatedSteps.map((s, idx) => {
@@ -215,6 +253,9 @@ router.get('/', async (req, res) => {
             ];
             return {
               userId: req.user._id,
+              roadmapType: 'core',
+              projectId: null,
+              projectName: null,
               week: weekNum,
               day: dayNum,
               phaseName: s.phaseName || `Week ${weekNum} Phase`,
@@ -230,25 +271,78 @@ router.get('/', async (req, res) => {
           })
         );
       } else {
-        console.log("⚠️ Using smart fallback generator for multi-week roadmap...");
         const fallback = generateSmartFallback(goal, level, weeks);
-        await RoadmapStep.insertMany(fallback.map((s, idx) => {
-          const dayNum = s.day || (idx + 1);
-          const weekNum = s.week && s.week > 0 ? s.week : Math.ceil(dayNum / 7);
-          return {
-            userId: req.user._id,
-            week: weekNum,
-            day: dayNum,
-            phaseName: s.phaseName,
-            dayName: s.dayName,
-            context: s.context,
-            completed: false,
-            tasks: s.tasks
-          };
-        }));
+        await RoadmapStep.insertMany(fallback.map((s) => ({
+          ...s,
+          userId: req.user._id,
+          roadmapType: 'core',
+          projectId: null,
+          projectName: null
+        })));
       }
 
-      steps = await RoadmapStep.find({ userId: req.user._id }).sort({ week: 1, day: 1 });
+      steps = await RoadmapStep.find({ userId: req.user._id, roadmapType: 'core' }).sort({ week: 1, day: 1 });
+    }
+    res.json(steps);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+router.get('/core', async (req, res) => {
+  try {
+    await runMigration(req.user._id);
+    let steps = await RoadmapStep.find({ userId: req.user._id, roadmapType: 'core' }).sort({ week: 1, day: 1 });
+
+    if (steps.length === 0) {
+      const user = await User.findById(req.user._id);
+      const weeks = user ? (user.timelineWeeks || 4) : 4;
+      const goal = user?.goal || 'DATA STRUCTURES';
+      const level = user?.level || 'intermediate';
+
+      console.log(`🧠 Generating Core AI roadmap for "${goal}" (${weeks} weeks, ${level} level)...`);
+      const prompt = buildRoadmapPrompt(goal, level, weeks);
+      const generatedSteps = await generateAIContent(prompt);
+
+      if (generatedSteps && Array.isArray(generatedSteps) && generatedSteps.length > 0) {
+        await RoadmapStep.insertMany(
+          generatedSteps.map((s, idx) => {
+            const dayNum = s.day || (idx + 1);
+            const weekNum = s.week && s.week > 0 ? s.week : Math.ceil(dayNum / 7);
+            const rawTasks = Array.isArray(s.tasks) && s.tasks.length > 0 ? s.tasks : [
+              { title: `[PRIMARY MISSION] Master ${s.dayName || 'Day Focus'}`, completed: false }
+            ];
+            return {
+              userId: req.user._id,
+              roadmapType: 'core',
+              projectId: null,
+              projectName: null,
+              week: weekNum,
+              day: dayNum,
+              phaseName: s.phaseName || `Week ${weekNum} Phase`,
+              dayName: s.dayName || `Day ${dayNum}: ${goal}`,
+              context: s.context || '',
+              completed: false,
+              tasks: rawTasks.map((t, tidx) => ({
+                taskId: t.taskId || `w${weekNum}-d${dayNum}-t${tidx + 1}`,
+                title: typeof t === 'string' ? t : (t.title || `Task ${tidx + 1}`),
+                completed: Boolean(t.completed)
+              }))
+            };
+          })
+        );
+      } else {
+        const fallback = generateSmartFallback(goal, level, weeks);
+        await RoadmapStep.insertMany(fallback.map((s) => ({
+          ...s,
+          userId: req.user._id,
+          roadmapType: 'core',
+          projectId: null,
+          projectName: null
+        })));
+      }
+
+      steps = await RoadmapStep.find({ userId: req.user._id, roadmapType: 'core' }).sort({ week: 1, day: 1 });
     }
     res.json(steps);
   } catch (err) {
@@ -257,7 +351,72 @@ router.get('/', async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════════
-// POST /api/roadmap/analyze-resume — Optimize roadmap via resume
+// PROJECT SPRINTS API ENDPOINTS
+// ═══════════════════════════════════════════════════════════
+
+// GET /api/roadmap/projects — List user project sprints
+router.get('/projects', async (req, res) => {
+  try {
+    await runMigration(req.user._id);
+    const projects = await Project.find({ userId: req.user._id }).sort({ createdAt: -1 });
+
+    // Sync live completed days count from RoadmapStep
+    const enrichedProjects = await Promise.all(projects.map(async (p) => {
+      const steps = await RoadmapStep.find({ userId: req.user._id, roadmapType: 'project', projectId: p.projectId });
+      const completedCount = steps.filter(s => s.completed).length;
+      const isDone = steps.length > 0 && completedCount === steps.length;
+      
+      if (p.completedDays !== completedCount || p.completed !== isDone) {
+        p.completedDays = completedCount;
+        p.completed = isDone;
+        await p.save();
+      }
+      return p;
+    }));
+
+    res.json(enrichedProjects);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// GET /api/roadmap/projects/:projectId — Fetch specific project sprint steps
+router.get('/projects/:projectId', async (req, res) => {
+  try {
+    await runMigration(req.user._id);
+    const project = await Project.findOne({ userId: req.user._id, projectId: req.params.projectId });
+    if (!project) return res.status(404).json({ message: 'Project Sprint not found' });
+
+    const steps = await RoadmapStep.find({
+      userId: req.user._id,
+      roadmapType: 'project',
+      projectId: req.params.projectId
+    }).sort({ day: 1 });
+
+    res.json({ project, steps });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// DELETE /api/roadmap/projects/:projectId — Delete a specific project sprint
+router.delete('/projects/:projectId', async (req, res) => {
+  try {
+    await runMigration(req.user._id);
+    const project = await Project.findOne({ userId: req.user._id, projectId: req.params.projectId });
+    if (!project) return res.status(404).json({ message: 'Project Sprint not found' });
+
+    await Project.deleteOne({ userId: req.user._id, projectId: req.params.projectId });
+    await RoadmapStep.deleteMany({ userId: req.user._id, roadmapType: 'project', projectId: req.params.projectId });
+
+    res.json({ success: true, message: 'Project Sprint deleted successfully' });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════
+// POST /api/roadmap/analyze-resume — Optimize Core Roadmap via Resume
 // ═══════════════════════════════════════════════════════════
 router.post('/analyze-resume', async (req, res) => {
   try {
@@ -266,6 +425,7 @@ router.post('/analyze-resume', async (req, res) => {
       return res.status(400).json({ message: 'Please upload a resume or paste your resume text.' });
     }
 
+    await runMigration(req.user._id);
     const user = await User.findById(req.user._id);
     if (!user) return res.status(401).json({ message: 'Authenticated user not found' });
 
@@ -287,7 +447,8 @@ router.post('/analyze-resume', async (req, res) => {
       generatedSteps = generateSmartFallback(goal, user.level || 'intermediate', weeks);
     }
 
-    await RoadmapStep.deleteMany({ userId: req.user._id });
+    // Wipes ONLY Core Roadmap steps. Leaves Project Sprints completely untouched!
+    await RoadmapStep.deleteMany({ userId: req.user._id, roadmapType: 'core' });
     await RoadmapStep.insertMany(generatedSteps.map((s, idx) => {
       const dayNum = s.day || (idx + 1);
       const weekNum = s.week && s.week > 0 ? s.week : Math.ceil(dayNum / 7);
@@ -296,6 +457,9 @@ router.post('/analyze-resume', async (req, res) => {
       ];
       return {
         userId: req.user._id,
+        roadmapType: 'core',
+        projectId: null,
+        projectName: null,
         week: weekNum,
         day: dayNum,
         phaseName: s.phaseName || `Phase ${weekNum}`,
@@ -312,12 +476,12 @@ router.post('/analyze-resume', async (req, res) => {
 
     await User.findByIdAndUpdate(req.user._id, { currentRoadmapDay: 1 });
 
-    return res.json({ success: true, message: 'Roadmap optimized via resume analysis', count: generatedSteps.length });
+    return res.json({ success: true, message: 'Core roadmap optimized via resume analysis', count: generatedSteps.length });
   } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
 // ═══════════════════════════════════════════════════════════
-// POST /api/roadmap/analyze-assignment — Breakdown project
+// POST /api/roadmap/analyze-assignment — Create New Project Sprint
 // ═══════════════════════════════════════════════════════════
 router.post('/analyze-assignment', async (req, res) => {
   try {
@@ -326,10 +490,15 @@ router.post('/analyze-assignment', async (req, res) => {
       return res.status(400).json({ message: 'Please provide assignment specifications or upload a project file.' });
     }
 
+    await runMigration(req.user._id);
     const user = await User.findById(req.user._id);
     if (!user) return res.status(401).json({ message: 'Authenticated user not found' });
 
+    const projectTitle = extractProjectTitle(assignmentText);
+    const projectId = `proj_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+
     const prompt = `Break this assignment/project specification into a step-by-step implementation sprint roadmap for exactly 7 days (1 week).
+    Project Title: "${projectTitle}"
     Assignment Specification: ${assignmentText.trim()}
     
     Output format: STRICT JSON array matching the roadmap schema (week: 1, day: 1-7, phaseName: "Project Sprint", dayName, context, tasks).`;
@@ -356,7 +525,8 @@ router.post('/analyze-assignment', async (req, res) => {
       });
     }
 
-    await RoadmapStep.deleteMany({ userId: req.user._id });
+    // Save project sprint steps with explicit roadmapType: 'project' and projectId
+    await RoadmapStep.deleteMany({ userId: req.user._id, roadmapType: 'project', projectId });
     await RoadmapStep.insertMany(generatedSteps.map((s, idx) => {
       const dayNum = s.day || (idx + 1);
       const weekNum = 1;
@@ -365,6 +535,9 @@ router.post('/analyze-assignment', async (req, res) => {
       ];
       return {
         userId: req.user._id,
+        roadmapType: 'project',
+        projectId,
+        projectName: projectTitle,
         week: weekNum,
         day: dayNum,
         phaseName: s.phaseName || 'Project Sprint',
@@ -379,58 +552,106 @@ router.post('/analyze-assignment', async (req, res) => {
       };
     }));
 
-    await User.findByIdAndUpdate(req.user._id, { currentRoadmapDay: 1 });
+    // Create Project record in MongoDB
+    const project = await Project.create({
+      userId: req.user._id,
+      projectId,
+      title: projectTitle,
+      description: assignmentText.trim().substring(0, 150),
+      totalDays: 7,
+      completedDays: 0,
+      completed: false
+    });
 
-    return res.json({ success: true, message: 'Assignment deconstructed successfully', count: 7 });
+    return res.json({
+      success: true,
+      message: 'Project Sprint created successfully',
+      projectId,
+      title: projectTitle,
+      project,
+      count: 7
+    });
   } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
 // ═══════════════════════════════════════════════════════════
-// GET /api/roadmap/today — Get the current day's module
+// GET /api/roadmap/today — Get current day's module
 // ═══════════════════════════════════════════════════════════
 router.get('/today', async (req, res) => {
   try {
+     await runMigration(req.user._id);
+     const { roadmapType, projectId } = req.query;
      const user = await User.findById(req.user._id);
-     const currentDay = user.currentRoadmapDay || 1;
-     let step = await RoadmapStep.findOne({ userId: req.user._id, day: currentDay });
-
-     if (!step) {
-       const goal = user.goal || 'Learn Software Engineering';
-       const level = user.level || 'beginner';
-       const weeks = user.timelineWeeks || 4;
-       const fallback = generateSmartFallback(goal, level, weeks);
-       await RoadmapStep.insertMany(fallback.map(s => ({ ...s, userId: req.user._id })));
-       step = await RoadmapStep.findOne({ userId: req.user._id, day: currentDay });
+     
+     let step = null;
+     if (roadmapType === 'project' && projectId) {
+       step = await RoadmapStep.findOne({ userId: req.user._id, roadmapType: 'project', projectId }).sort({ day: 1 });
+     } else {
+       const currentDay = user ? (user.currentRoadmapDay || 1) : 1;
+       step = await RoadmapStep.findOne({ userId: req.user._id, roadmapType: 'core', day: currentDay });
+       if (!step) {
+         const goal = user ? (user.goal || 'DATA STRUCTURES') : 'DATA STRUCTURES';
+         const level = user ? (user.level || 'intermediate') : 'intermediate';
+         const weeks = user ? (user.timelineWeeks || 4) : 4;
+         const fallback = generateSmartFallback(goal, level, weeks);
+         await RoadmapStep.insertMany(fallback.map(s => ({
+           ...s,
+           userId: req.user._id,
+           roadmapType: 'core',
+           projectId: null,
+           projectName: null
+         })));
+         step = await RoadmapStep.findOne({ userId: req.user._id, roadmapType: 'core', day: currentDay });
+       }
      }
 
-     const totalDays = await RoadmapStep.countDocuments({ userId: req.user._id });
-     res.json({ currentDay, totalDays, step });
+     const totalDays = await RoadmapStep.countDocuments({
+       userId: req.user._id,
+       ...(roadmapType === 'project' && projectId ? { roadmapType: 'project', projectId } : { roadmapType: 'core' })
+     });
+
+     res.json({ currentDay: step ? step.day : 1, totalDays, step });
   } catch (err) { res.status(500).json({ message: err.message }); }
 });
-
 
 // ═══════════════════════════════════════════════════════════
 // PATCH /api/roadmap/:day/task/:taskId — Toggle task completion
 // ═══════════════════════════════════════════════════════════
 router.patch('/:day/task/:taskId', async (req, res) => {
   try {
+    await runMigration(req.user._id);
     const dayNumeric = parseInt(req.params.day, 10);
-    const step = await RoadmapStep.findOne({ userId: req.user._id, day: dayNumeric });
+    const { roadmapType, projectId } = req.query;
+
+    const query = { userId: req.user._id, day: dayNumeric };
+    if (roadmapType === 'project' && projectId) {
+      query.roadmapType = 'project';
+      query.projectId = projectId;
+    } else {
+      query.roadmapType = 'core';
+    }
+
+    const step = await RoadmapStep.findOne(query);
     if (!step) return res.status(404).json({ message: 'Roadmap step not found' });
 
     const task = step.tasks.find(t => t.taskId === req.params.taskId);
     if (!task) return res.status(404).json({ message: 'Task not found' });
 
     task.completed = req.body.completed;
-    
     const allCompleted = step.tasks.every(t => t.completed);
     step.completed = allCompleted;
-
     await step.save();
 
-    if (allCompleted) {
+    if (step.roadmapType === 'project' && step.projectId) {
+      const allSteps = await RoadmapStep.find({ userId: req.user._id, roadmapType: 'project', projectId: step.projectId });
+      const completedCount = allSteps.filter(s => s.completed).length;
+      await Project.updateOne(
+        { userId: req.user._id, projectId: step.projectId },
+        { $set: { completedDays: completedCount, completed: allSteps.length > 0 && completedCount === allSteps.length } }
+      );
+    } else if (allCompleted) {
       const user = await User.findById(req.user._id);
-      if (user.currentRoadmapDay === dayNumeric) {
+      if (user && user.currentRoadmapDay === dayNumeric) {
         user.currentRoadmapDay += 1;
         await user.save();
       }
@@ -445,10 +666,20 @@ router.patch('/:day/task/:taskId', async (req, res) => {
 // ═══════════════════════════════════════════════════════════
 router.patch('/:day/complete', async (req, res) => {
   try {
+    await runMigration(req.user._id);
     const dayNumeric = parseInt(req.params.day, 10);
     const completed = req.body.completed !== undefined ? req.body.completed : true;
+    const { roadmapType, projectId } = req.query;
 
-    const step = await RoadmapStep.findOne({ userId: req.user._id, day: dayNumeric });
+    const query = { userId: req.user._id, day: dayNumeric };
+    if (roadmapType === 'project' && projectId) {
+      query.roadmapType = 'project';
+      query.projectId = projectId;
+    } else {
+      query.roadmapType = 'core';
+    }
+
+    const step = await RoadmapStep.findOne(query);
     if (!step) return res.status(404).json({ message: 'Roadmap step not found' });
 
     step.completed = completed;
@@ -457,36 +688,45 @@ router.patch('/:day/complete', async (req, res) => {
     }
     await step.save();
 
-    let user = await User.findById(req.user._id);
-    if (user) {
-      if (completed) {
-        if (user.currentRoadmapDay <= dayNumeric) {
-          user = await User.findByIdAndUpdate(
-            req.user._id,
-            { $set: { currentRoadmapDay: dayNumeric + 1 }, $inc: { streak: 1 } },
-            { new: true }
-          );
-        }
-      } else {
-        if (user.currentRoadmapDay > dayNumeric) {
-          user = await User.findByIdAndUpdate(
-            req.user._id,
-            { $set: { currentRoadmapDay: dayNumeric } },
-            { new: true }
-          );
+    let currentDayVal = dayNumeric;
+    if (step.roadmapType === 'project' && step.projectId) {
+      const allSteps = await RoadmapStep.find({ userId: req.user._id, roadmapType: 'project', projectId: step.projectId });
+      const completedCount = allSteps.filter(s => s.completed).length;
+      await Project.updateOne(
+        { userId: req.user._id, projectId: step.projectId },
+        { $set: { completedDays: completedCount, completed: allSteps.length > 0 && completedCount === allSteps.length } }
+      );
+    } else {
+      let user = await User.findById(req.user._id);
+      if (user) {
+        if (completed) {
+          if (user.currentRoadmapDay <= dayNumeric) {
+            user = await User.findByIdAndUpdate(
+              req.user._id,
+              { $set: { currentRoadmapDay: dayNumeric + 1 }, $inc: { streak: 1 } },
+              { new: true }
+            );
+          }
+        } else {
+          if (user.currentRoadmapDay > dayNumeric) {
+            user = await User.findByIdAndUpdate(
+              req.user._id,
+              { $set: { currentRoadmapDay: dayNumeric } },
+              { new: true }
+            );
+          }
         }
       }
+      currentDayVal = user ? user.currentRoadmapDay : (completed ? dayNumeric + 1 : dayNumeric);
     }
-    const currentDayVal = user ? user.currentRoadmapDay : (completed ? dayNumeric + 1 : dayNumeric);
+
     res.json({ message: `Day ${dayNumeric} marked as ${completed ? 'completed' : 'pending'}`, step, currentRoadmapDay: currentDayVal });
   } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
-
 // ═══════════════════════════════════════════════════════════
-// GET /api/roadmap/concept/:day — On-demand Topic-Constrained AI Concept Generation
+// GET /api/roadmap/concept/:day — On-demand AI Concept Generation
 // ═══════════════════════════════════════════════════════════
-
 const getTopicSpecificFallback = (topic, phase, dayNum, goal) => {
   const tLower = (topic || '').toLowerCase();
 
@@ -498,24 +738,7 @@ const getTopicSpecificFallback = (topic, phase, dayNum, goal) => {
       phase: phase,
       subtitle: 'Eliminate data redundancy, update anomalies, and transitive dependencies via 1NF, 2NF, and 3NF table decomposition.',
       whyMatters: 'Database normalization ensures data integrity, prevents insertion/update/deletion anomalies, and reduces storage overhead in relational engines.',
-      codeSnippet: `-- 3NF Normalized Schema Example
-CREATE TABLE Students (
-    student_id INT PRIMARY KEY,
-    student_name VARCHAR(100)
-);
-
-CREATE TABLE Courses (
-    course_id INT PRIMARY KEY,
-    course_name VARCHAR(100)
-);
-
--- Resolved Many-to-Many & Transitive Dependency into 3NF
-CREATE TABLE Enrollments (
-    student_id INT REFERENCES Students(student_id),
-    course_id INT REFERENCES Courses(course_id),
-    grade VARCHAR(2),
-    PRIMARY KEY (student_id, course_id)
-);`,
+      codeSnippet: `-- 3NF Normalized Schema Example\nCREATE TABLE Students (\n    student_id INT PRIMARY KEY,\n    student_name VARCHAR(100)\n);\n\nCREATE TABLE Courses (\n    course_id INT PRIMARY KEY,\n    course_name VARCHAR(100)\n);\n\nCREATE TABLE Enrollments (\n    student_id INT REFERENCES Students(student_id),\n    course_id INT REFERENCES Courses(course_id),\n    grade VARCHAR(2),\n    PRIMARY KEY (student_id, course_id)\n);`,
       quizQuestion: 'What type of dependency is eliminated when decomposing a relational table from 2NF to 3NF?',
       quizOptions: [
         { id: 'A', text: 'Transitive dependency (non-prime attribute depending on another non-prime attribute).', correct: true },
@@ -533,11 +756,7 @@ CREATE TABLE Enrollments (
       phase: phase,
       subtitle: 'Combine rows from two or more tables based on a related column join predicate.',
       whyMatters: 'Understanding relational joins is fundamental to querying normalized schemas efficiently.',
-      codeSnippet: `-- INNER JOIN vs LEFT JOIN Example
-SELECT u.name, o.order_date, o.total_amount
-FROM Users u
-INNER JOIN Orders o ON u.user_id = o.user_id
-WHERE o.order_date >= '2026-01-01';`,
+      codeSnippet: `-- INNER JOIN vs LEFT JOIN Example\nSELECT u.name, o.order_date, o.total_amount\nFROM Users u\nINNER JOIN Orders o ON u.user_id = o.user_id\nWHERE o.order_date >= '2026-01-01';`,
       quizQuestion: 'Which SQL join returns all rows from the left table, even if there are no matches in the right table?',
       quizOptions: [
         { id: 'A', text: 'LEFT OUTER JOIN', correct: true },
@@ -555,11 +774,7 @@ WHERE o.order_date >= '2026-01-01';`,
       phase: phase,
       subtitle: 'Ensure Atomicity, Consistency, Isolation, and Durability across database write operations.',
       whyMatters: 'ACID guarantees prevent corrupt states during server crashes, concurrent updates, and financial operations.',
-      codeSnippet: `-- PostgreSQL ACID Transaction Block
-BEGIN;
-  UPDATE Accounts SET balance = balance - 500 WHERE account_id = 101;
-  UPDATE Accounts SET balance = balance + 500 WHERE account_id = 202;
-COMMIT;`,
+      codeSnippet: `-- PostgreSQL ACID Transaction Block\nBEGIN;\n  UPDATE Accounts SET balance = balance - 500 WHERE account_id = 101;\n  UPDATE Accounts SET balance = balance + 500 WHERE account_id = 202;\nCOMMIT;`,
       quizQuestion: 'Which ACID property guarantees that all operations in a transaction succeed together or fail completely with a rollback?',
       quizOptions: [
         { id: 'A', text: 'Atomicity (All-or-Nothing execution)', correct: true },
@@ -577,15 +792,7 @@ COMMIT;`,
       phase: phase,
       subtitle: 'Implement in-memory caching patterns to reduce database latency from 100ms to <2ms.',
       whyMatters: 'Caching hot data in RAM mitigates database bottlenecks under high read throughput.',
-      codeSnippet: `// Cache-Aside Pattern in Node.js & Redis
-async function getUserProfile(userId) {
-  const cached = await redis.get(\`user:\${userId}\`);
-  if (cached) return JSON.parse(cached);
-
-  const user = await db.query('SELECT * FROM Users WHERE id = ?', [userId]);
-  await redis.setex(\`user:\${userId}\`, 3600, JSON.stringify(user));
-  return user;
-}`,
+      codeSnippet: `// Cache-Aside Pattern in Node.js & Redis\nasync function getUserProfile(userId) {\n  const cached = await redis.get(\`user:\${userId}\`);\n  if (cached) return JSON.parse(cached);\n\n  const user = await db.query('SELECT * FROM Users WHERE id = ?', [userId]);\n  await redis.setex(\`user:\${userId}\`, 3600, JSON.stringify(user));\n  return user;\n}`,
       quizQuestion: 'In a Cache-Aside pattern, what happens when a requested key is not present in the Redis cache (Cache Miss)?',
       quizOptions: [
         { id: 'A', text: 'The application queries the database, writes the result to Redis, and returns it to the client.', correct: true },
@@ -603,28 +810,7 @@ async function getUserProfile(userId) {
       phase: phase,
       subtitle: 'Understand DDL schema definitions (CREATE/ALTER/DROP) vs DML data modifications (INSERT/UPDATE/DELETE) and Foreign Key CASCADE rules.',
       whyMatters: 'DDL defines database structures and constraints, while DML manipulates records. Foreign Key CASCADE rules maintain referential integrity automatically.',
-      codeSnippet: `-- DDL: Create Parent & Child Tables with Foreign Key CASCADE
-CREATE TABLE Departments (
-    dept_id INT PRIMARY KEY,
-    dept_name VARCHAR(100) NOT NULL
-);
-
-CREATE TABLE Employees (
-    emp_id INT PRIMARY KEY,
-    emp_name VARCHAR(100),
-    dept_id INT,
-    CONSTRAINT fk_dept FOREIGN KEY (dept_id)
-        REFERENCES Departments(dept_id)
-        ON DELETE CASCADE
-        ON UPDATE CASCADE
-);
-
--- DML: Insert Data & Test Cascade Delete
-INSERT INTO Departments VALUES (1, 'Engineering');
-INSERT INTO Employees VALUES (101, 'Alice', 1);
-
--- Deleting parent record automatically cascades deletion to child rows
-DELETE FROM Departments WHERE dept_id = 1;`,
+      codeSnippet: `-- DDL: Create Parent & Child Tables with Foreign Key CASCADE\nCREATE TABLE Departments (\n    dept_id INT PRIMARY KEY,\n    dept_name VARCHAR(100) NOT NULL\n);\n\nCREATE TABLE Employees (\n    emp_id INT PRIMARY KEY,\n    emp_name VARCHAR(100),\n    dept_id INT,\n    CONSTRAINT fk_dept FOREIGN KEY (dept_id)\n        REFERENCES Departments(dept_id)\n        ON DELETE CASCADE\n        ON UPDATE CASCADE\n);\n\nINSERT INTO Departments VALUES (1, 'Engineering');\nINSERT INTO Employees VALUES (101, 'Alice', 1);\n\nDELETE FROM Departments WHERE dept_id = 1;`,
       quizQuestion: 'In a relational database, what happens when a parent row is deleted if the foreign key constraint is configured with ON DELETE CASCADE?',
       quizOptions: [
         { id: 'A', text: 'All matching child rows in the referencing table are automatically deleted.', correct: true },
@@ -651,7 +837,6 @@ DELETE FROM Departments WHERE dept_id = 1;`,
   };
 };
 
-
 const classifyTopicToVisualizer = (topic) => {
   const t = (topic || '').toLowerCase();
   if (t.includes('ddl') || t.includes('dml') || t.includes('foreign key') || t.includes('cascade')) return 'SQL_SCHEMA_RELATIONSHIP';
@@ -669,18 +854,27 @@ const classifyTopicToVisualizer = (topic) => {
   if (t.includes('hash ring') || t.includes('consistent hash')) return 'HASH_RING';
   if (t.includes('jwt') || t.includes('oauth') || t.includes('cookie') || t.includes('auth')) return 'JWT_TOKEN';
   if (t.includes('load balan') || t.includes('microservice') || t.includes('architecture')) return 'SYSTEM_ARCHITECTURE';
-  
   return 'NONE';
 };
 
 router.get('/concept/:day', async (req, res) => {
   try {
+    await runMigration(req.user._id);
     const dayNum = parseInt(req.params.day, 10) || 1;
+    const { roadmapType, projectId } = req.query;
     const user = await User.findById(req.user._id);
-    const step = await RoadmapStep.findOne({ userId: req.user._id, day: dayNum });
 
-    const goal = user.goal || 'Software Engineering';
-    const level = user.level || 'beginner';
+    const query = { userId: req.user._id, day: dayNum };
+    if (roadmapType === 'project' && projectId) {
+      query.roadmapType = 'project';
+      query.projectId = projectId;
+    } else {
+      query.roadmapType = 'core';
+    }
+
+    const step = await RoadmapStep.findOne(query);
+    const goal = user ? (user.goal || 'Software Engineering') : 'Software Engineering';
+    const level = user ? (user.level || 'beginner') : 'beginner';
     const topic = step ? step.dayName : `Day ${dayNum} Core Module`;
     const phase = step ? step.phaseName : goal;
     const context = step ? step.context : '';
@@ -733,7 +927,6 @@ Output ONLY raw valid JSON. No markdown backticks.`;
         textStr = textStr.substring(jsonStart, jsonEnd + 1);
       }
       const parsedConcept = JSON.parse(textStr);
-
       parsedConcept.visualType = expectedVisualType;
       parsedConcept.hasSimulation = expectedVisualType !== 'NONE';
 
@@ -745,15 +938,15 @@ Output ONLY raw valid JSON. No markdown backticks.`;
   } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
-
 // ═══════════════════════════════════════════════════════════
-// DELETE /api/roadmap — Reset roadmap (for re-generation)
+// DELETE /api/roadmap — Reset Core Roadmap (for re-generation)
 // ═══════════════════════════════════════════════════════════
 router.delete('/', async (req, res) => {
   try {
-    await RoadmapStep.deleteMany({ userId: req.user._id });
+    await runMigration(req.user._id);
+    await RoadmapStep.deleteMany({ userId: req.user._id, roadmapType: 'core' });
     await User.findByIdAndUpdate(req.user._id, { currentRoadmapDay: 1 });
-    res.json({ message: 'Roadmap reset successfully' });
+    res.json({ message: 'Core roadmap reset successfully' });
   } catch (err) { res.status(500).json({ message: err.message }); }
 });
 

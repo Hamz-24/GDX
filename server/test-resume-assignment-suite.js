@@ -161,14 +161,18 @@ async function runResumeAndAssignmentSuite() {
     });
     assertTest('A04', emptyAssignRes.status === 400, 'Empty assignment input correctly rejected with HTTP 400');
 
-    // A05 & A08 & A09: Sprint Persistence in DB & User Day Reset
-    const getSprintRes = await fetch(`${baseUrl}/api/roadmap`, {
+    // A05 & A08: Fetch Project Sprint Steps & Verify 7-Day Count
+    const getSprintRes = await fetch(`${baseUrl}/api/roadmap/projects`, {
       headers: { 'Authorization': `Bearer ${token}` }
     });
-    const sprintSteps = await getSprintRes.json();
-    const isSevenDays = Array.isArray(sprintSteps) && sprintSteps.length === 7;
-    assertTest('A05', getSprintRes.status === 200, 'Authenticated API request for sprint roadmap succeeded');
-    assertTest('A08', isSevenDays, `7-Day Sprint persisted in MongoDB database (${sprintSteps.length} days total)`);
+    const projectsList = await getSprintRes.json();
+    assertTest('A05', getSprintRes.status === 200 && Array.isArray(projectsList), 'Authenticated API request for sprint projects succeeded');
+    const latestProj = projectsList[0];
+    const projDetailRes = await fetch(`${baseUrl}/api/roadmap/projects/${latestProj.projectId}`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    const projDetail = await projDetailRes.json();
+    assertTest('A08', Array.isArray(projDetail.steps) && projDetail.steps.length === 7, `7-Day Sprint persisted in MongoDB database (${projDetail.steps ? projDetail.steps.length : 0} days total)`);
 
     const meSprintRes = await fetch(`${baseUrl}/api/auth/me`, {
       headers: { 'Authorization': `Bearer ${token}` }
