@@ -9,7 +9,7 @@ import ChatMessage from '../models/ChatMessage.js';
 const router = express.Router();
 router.use(protect);
 
-// GET /api/insights/weekly — Full live dashboard metrics
+// GET /api/insights/weekly — Full live dashboard & report metrics
 router.get('/weekly', async (req, res) => {
   try {
     const userId = req.user._id;
@@ -35,7 +35,7 @@ router.get('/weekly', async (req, res) => {
       Task.find({ userId, date: new Date().toISOString().split('T')[0] })
     ]);
 
-    const totalFocusMinutes = focusSessions.reduce((sum, s) => sum + s.duration, 0);
+    const totalFocusMinutes = focusSessions.reduce((sum, s) => sum + (s.duration || 0), 0);
     const missedTasks = await Task.countDocuments({
       userId,
       status: 'Pending',
@@ -48,7 +48,7 @@ router.get('/weekly', async (req, res) => {
     focusSessions.forEach(s => {
       const dName = dayNames[new Date(s.createdAt).getDay()];
       if (weeklyMap[dName] !== undefined) {
-        weeklyMap[dName] += s.duration;
+        weeklyMap[dName] += s.duration || 0;
       }
     });
 
@@ -57,30 +57,36 @@ router.get('/weekly', async (req, res) => {
       v: weeklyMap[label] || 0
     }));
 
-    // 2. Career Readiness / Mastery Index Calculation
+    // 2. Career Readiness / Mastery Index Calculation & Breakdown
     const totalStepsCount = roadmapSteps.length || 1;
     const completedStepsCount = roadmapSteps.filter(s => s.completed).length;
     let completedTasksCount = 0;
     let totalRoadmapTasks = 0;
     roadmapSteps.forEach(s => {
-      s.tasks.forEach(t => {
-        totalRoadmapTasks++;
-        if (t.completed) completedTasksCount++;
-      });
+      if (Array.isArray(s.tasks)) {
+        s.tasks.forEach(t => {
+          totalRoadmapTasks++;
+          if (t.completed) completedTasksCount++;
+        });
+      }
     });
 
     const stepRatio = completedStepsCount / totalStepsCount;
     const taskRatio = totalRoadmapTasks > 0 ? completedTasksCount / totalRoadmapTasks : 0;
     const streakBonus = Math.min(20, (user.streak || 0) * 2);
-    const careerReadiness = Math.min(100, Math.round((stepRatio * 50) + (taskRatio * 30) + streakBonus));
+
+    const roadmapCompletionPts = Math.round(stepRatio * 50);
+    const taskCompletionPts = Math.round(taskRatio * 30);
+    const careerReadiness = Math.min(100, Math.round(roadmapCompletionPts + taskCompletionPts + streakBonus));
 
     // 3. Skill Node Breakdown (Derived from Roadmap Phases & Steps)
     const phasesMap = {};
     roadmapSteps.forEach(s => {
       const pName = s.phaseName || 'Core Fundamentals';
       if (!phasesMap[pName]) phasesMap[pName] = { total: 0, completed: 0 };
-      phasesMap[pName].total += s.tasks.length || 1;
-      phasesMap[pName].completed += s.tasks.filter(t => t.completed).length;
+      const tList = s.tasks || [];
+      phasesMap[pName].total += tList.length || 1;
+      phasesMap[pName].completed += tList.filter(t => t.completed).length;
     });
 
     const skillNodes = Object.keys(phasesMap).slice(0, 5).map((phase, idx) => {
@@ -94,10 +100,23 @@ router.get('/weekly', async (req, res) => {
       };
     });
 
-    // 4. Next Best Action
+    // 4. Next Best Action & Next Roadmap Module
     let nextBestAction = null;
     const pendingTask = todayTasks.find(t => t.status !== 'Done');
-    const currentStep = roadmapSteps.find(s => s.day === (user.currentRoadmapDay || 1));
+    const currentRoadmapDay = user.currentRoadmapDay || 1;
+    const currentStep = roadmapSteps.find(s => s.day === currentRoadmapDay) || roadmapSteps[0];
+
+    const nextModule = currentStep ? {
+      day: currentStep.day,
+      phaseName: currentStep.phaseName || `Phase ${currentStep.week}`,
+      dayName: currentStep.dayName || `Day ${currentStep.day}`,
+      title: currentStep.context || (currentStep.tasks && currentStep.tasks[0]?.title) || 'Daily Focus Topic'
+    } : {
+      day: currentRoadmapDay,
+      phaseName: 'Core Foundations',
+      dayName: `Day ${currentRoadmapDay}`,
+      title: 'Daily Technical Mission'
+    };
 
     if (pendingTask) {
       nextBestAction = {
@@ -122,7 +141,7 @@ router.get('/weekly', async (req, res) => {
       };
     } else {
       nextBestAction = {
-        title: `Explore Day ${(user.currentRoadmapDay || 1)} Concept Module`,
+        title: `Explore Day ${currentRoadmapDay} Concept Module`,
         description: `Review technical intuition, interactive visualizer, and code playground.`,
         durationMinutes: 30,
         signals: [
@@ -151,6 +170,10 @@ router.get('/weekly', async (req, res) => {
       });
     }
 
+    const totalRoadmapDays = roadmapSteps.length || (req.user.timelineWeeks ? req.user.timelineWeeks * 7 : 28);
+    const totalRoadmapWeeks = Math.ceil(totalRoadmapDays / 7) || req.user.timelineWeeks || 4;
+    const currentWeek = Math.ceil(currentRoadmapDay / 7) || 1;
+
     res.json({
       tasksCompleted,
       totalTasks,
@@ -159,12 +182,20 @@ router.get('/weekly', async (req, res) => {
       missedTasks,
       streak: user.streak || 0,
       careerReadiness,
+      careerReadinessBreakdown: {
+        roadmapCompletion: roadmapCompletionPts,
+        taskCompletion: taskCompletionPts,
+        streakBonus: streakBonus
+      },
       weeklyData,
       skillNodes,
       nextBestAction,
+      nextModule,
       aiActivity,
-      currentRoadmapDay: user.currentRoadmapDay || 1,
-      totalRoadmapDays: roadmapSteps.length
+      currentRoadmapDay,
+      totalRoadmapDays,
+      totalRoadmapWeeks,
+      currentWeek
     });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -172,4 +203,3 @@ router.get('/weekly', async (req, res) => {
 });
 
 export default router;
-
