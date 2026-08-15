@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Play, Sparkles, CheckCircle2, ArrowRight, BookOpen, Clock, ShieldCheck, Database, Cpu, Key, ChevronLeft, ChevronRight, Grid, Network, Layers, FileCode, Check, AlertCircle } from 'lucide-react';
+import { Play, Sparkles, CheckCircle2, ArrowRight, BookOpen, Clock, ShieldCheck, Database, Cpu, Key, ChevronLeft, ChevronRight, Grid, Network, Layers, FileCode, Check, AlertCircle, Loader } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { USER_PROFILE, generatePersonalizedRoadmap } from '../constants/userProfile';
 import { useAuth } from '../context/AuthContext';
+import api from '../utils/api';
+
 
 /**
  * Dynamic Concept Generator for ANY Day and ANY Domain
@@ -260,7 +262,151 @@ while curr:
     };
   }
 
-  // 7. TREE / GRAPH
+  // 5. DATABASE NORMALIZATION (1NF, 2NF, 3NF)
+  if (topicLower.includes('normalization') || topicLower.includes('1nf') || topicLower.includes('2nf') || topicLower.includes('3nf')) {
+    return {
+      hasSimulation: true,
+      visualType: 'NORMALIZATION',
+      title: foundTopic,
+      phase: phaseTitle,
+      subtitle: `Eliminate data redundancy, update anomalies, and transitive dependencies via 1NF, 2NF, and 3NF table decomposition.`,
+      whyMatters: `Database normalization ensures data integrity, prevents insertion/update/deletion anomalies, and reduces storage overhead in relational engines.`,
+      codeSnippet: `-- 3NF Normalized Relational Schema
+CREATE TABLE Students (
+    student_id INT PRIMARY KEY,
+    student_name VARCHAR(100)
+);
+
+CREATE TABLE Courses (
+    course_id INT PRIMARY KEY,
+    course_name VARCHAR(100)
+);
+
+-- Resolved Many-to-Many & Transitive Dependency into 3NF
+CREATE TABLE Enrollments (
+    student_id INT REFERENCES Students(student_id),
+    course_id INT REFERENCES Courses(course_id),
+    grade VARCHAR(2),
+    PRIMARY KEY (student_id, course_id)
+);`,
+      quizQuestion: `What type of dependency is eliminated when decomposing a relational table from 2NF to 3NF?`,
+      quizOptions: [
+        { id: 'A', text: 'Transitive dependency (non-prime attribute depending on another non-prime attribute).', correct: true },
+        { id: 'B', text: 'Partial dependency on a composite primary key.' },
+        { id: 'C', text: 'Multi-valued repeating column groups.' }
+      ]
+    };
+  }
+
+  // 6. SQL JOINS (INNER, LEFT, RIGHT)
+  if (topicLower.includes('join') || topicLower.includes('inner join') || topicLower.includes('left join')) {
+    return {
+      hasSimulation: true,
+      visualType: 'SQL_JOIN',
+      title: foundTopic,
+      phase: phaseTitle,
+      subtitle: `Combine rows from two or more tables based on a related column join predicate.`,
+      whyMatters: `Understanding relational joins is fundamental to querying normalized schemas efficiently.`,
+      codeSnippet: `-- INNER JOIN vs LEFT JOIN Example
+SELECT u.name, o.order_date, o.total_amount
+FROM Users u
+INNER JOIN Orders o ON u.user_id = o.user_id
+WHERE o.order_date >= '2026-01-01';`,
+      quizQuestion: `Which SQL join returns all rows from the left table, even if there are no matches in the right table?`,
+      quizOptions: [
+        { id: 'A', text: 'LEFT OUTER JOIN', correct: true },
+        { id: 'B', text: 'INNER JOIN' },
+        { id: 'C', text: 'CROSS JOIN' }
+      ]
+    };
+  }
+
+  // 7. ACID TRANSACTIONS & CONCURRENCY
+  if (topicLower.includes('acid') || topicLower.includes('transaction') || topicLower.includes('isolation')) {
+    return {
+      hasSimulation: true,
+      visualType: 'ACID_TRANSACTION',
+      title: foundTopic,
+      phase: phaseTitle,
+      subtitle: `Ensure Atomicity, Consistency, Isolation, and Durability across database write operations.`,
+      whyMatters: `ACID guarantees prevent corrupt states during server crashes, concurrent updates, and financial operations.`,
+      codeSnippet: `-- PostgreSQL ACID Transaction Block
+BEGIN;
+  UPDATE Accounts SET balance = balance - 500 WHERE account_id = 101;
+  UPDATE Accounts SET balance = balance + 500 WHERE account_id = 202;
+COMMIT;`,
+      quizQuestion: `Which ACID property guarantees that all operations in a transaction succeed together or fail completely with a rollback?`,
+      quizOptions: [
+        { id: 'A', text: 'Atomicity (All-or-Nothing execution)', correct: true },
+        { id: 'B', text: 'Isolation' },
+        { id: 'C', text: 'Durability' }
+      ]
+    };
+  }
+
+  // 8. REDIS & CACHING
+  if (topicLower.includes('cache') || topicLower.includes('redis') || topicLower.includes('memcached')) {
+    return {
+      hasSimulation: true,
+      visualType: 'REDIS_CACHE',
+      title: foundTopic,
+      phase: phaseTitle,
+      subtitle: `Implement in-memory caching patterns to reduce database latency from 100ms to <2ms.`,
+      whyMatters: `Caching hot data in RAM mitigates database bottlenecks under high read throughput.`,
+      codeSnippet: `// Cache-Aside Pattern in Node.js & Redis
+async function getUserProfile(userId) {
+  const cached = await redis.get(\`user:\${userId}\`);
+  if (cached) return JSON.parse(cached);
+
+  const user = await db.query('SELECT * FROM Users WHERE id = ?', [userId]);
+  await redis.setex(\`user:\${userId}\`, 3600, JSON.stringify(user));
+  return user;
+}`,
+      quizQuestion: `In a Cache-Aside pattern, what happens when a requested key is not present in the Redis cache (Cache Miss)?`,
+      quizOptions: [
+        { id: 'A', text: 'The application queries the database, writes the result to Redis, and returns it to the client.', correct: true },
+        { id: 'B', text: 'Redis automatically generates dummy fallback data.' },
+        { id: 'C', text: 'The request fails with HTTP 404.' }
+      ]
+    };
+  }
+
+  // 9. LINKED LIST
+  if (topicLower.includes('linked list') || topicLower.includes('node allocation')) {
+    return {
+      hasSimulation: true,
+      visualType: 'LINKED_LIST',
+      title: foundTopic,
+      phase: phaseTitle,
+      subtitle: `Understand dynamic heap node allocation, pointer references, and sequential traversal mechanics.`,
+      whyMatters: `Linked lists store elements non-contiguously, enabling O(1) dynamic insertions/deletions at known pointer nodes.`,
+      nodesList: [
+        { addr: '0x1000', val: 12, next: '0x1040' },
+        { addr: '0x1040', val: 45, next: '0x10B0' },
+        { addr: '0x10B0', val: 89, next: 'NULL' }
+      ],
+      codeSnippet: `# Node Definition & Linked List Traversal
+class Node:
+    def __init__(self, val, next_node=None):
+        self.val = val
+        self.next = next_node
+
+head = Node(12, Node(45, Node(89)))
+
+curr = head
+while curr:
+    print(f"Visiting Node val={curr.val}")
+    curr = curr.next`,
+      quizQuestion: `Why does finding an element by index in a Singly Linked List take O(N) time?`,
+      quizOptions: [
+        { id: 'A', text: 'Node memory is non-contiguous, requiring sequential pointer traversal from Head.', correct: true },
+        { id: 'B', text: 'The CPU cache automatically locks linked list nodes.' },
+        { id: 'C', text: 'LinkedList nodes can only store strings.' }
+      ]
+    };
+  }
+
+  // 10. TREE / GRAPH
   if (topicLower.includes('tree') || topicLower.includes('graph') || topicLower.includes('dfs') || topicLower.includes('bfs') || topicLower.includes('bst')) {
     return {
       hasSimulation: true,
@@ -292,8 +438,8 @@ def in_order_traversal(root):
     };
   }
 
-  // 8. DATABASE B-TREE INDEX
-  if (dUpper.includes('DATABASE') || dUpper.includes('DB')) {
+  // 11. DATABASE B-TREE INDEX (Only when topic specifically mentions B-Tree or Indexing)
+  if (topicLower.includes('b-tree') || topicLower.includes('indexing') || topicLower.includes('explain analyze') || topicLower.includes('index')) {
     return {
       hasSimulation: true,
       visualType: 'B_TREE_INDEX',
@@ -321,41 +467,37 @@ WHERE email = 'student@guidex.io';`,
     };
   }
 
-  // 9. SYSTEM DESIGN HASH RING
-  if (dUpper.includes('SYSTEM') || dUpper.includes('SYS')) {
+  // 12. SYSTEM DESIGN HASH RING / ARCHITECTURE
+  if (topicLower.includes('hash ring') || topicLower.includes('consistent hash') || topicLower.includes('load balan') || topicLower.includes('microservice') || topicLower.includes('system design')) {
     return {
       hasSimulation: true,
-      visualType: 'HASH_RING',
+      visualType: topicLower.includes('hash') ? 'HASH_RING' : 'SYSTEM_ARCHITECTURE',
       title: foundTopic,
       phase: phaseTitle,
-      subtitle: `Distribute incoming request hashes across a 360° Consistent Hashing Ring of server nodes.`,
-      whyMatters: `Consistent hashing minimizes key remapping when scaling out server clusters.`,
+      subtitle: `Distribute incoming request traffic across scalable microservices, load balancers, and gateways.`,
+      whyMatters: `System architecture design guarantees high availability, horizontal scalability, and zero single points of failure.`,
       clusterNodes: [
         { name: 'Server Alpha (0°)', angle: 0 },
         { name: 'Server Beta (120°)', angle: 120 },
         { name: 'Server Gamma (240°)', angle: 240 },
         { name: 'Request Hash (145°)', angle: 145 }
       ],
-      codeSnippet: `# Consistent Hashing Ring Routing
-import hashlib
-
-def route_key(user_id, ring_nodes):
-    hash_val = int(hashlib.md5(user_id.encode()).hexdigest(), 16) % 360
-    for angle, node in sorted(ring_nodes):
-        if hash_val <= angle:
-            return node
-    return ring_nodes[0][1]`,
-      quizQuestion: `What happens when a new server node is added to a Consistent Hashing ring?`,
+      codeSnippet: `# System Load Balancing & Service Discovery
+def route_incoming_request(request, cluster_nodes):
+    # Route via Layer 7 Weighted Round-Robin
+    target_node = select_healthy_node(cluster_nodes)
+    return forward_request(target_node, request)`,
+      quizQuestion: `What is the primary function of a Layer 7 Load Balancer in a distributed system?`,
       quizOptions: [
-        { id: 'A', text: 'Only a fraction (1/N) of keys are remapped, preserving cache hit ratios.', correct: true },
-        { id: 'B', text: '100% of all keys in the database must be re-hashed.' },
-        { id: 'C', text: 'The load balancer drops all active connections.' }
+        { id: 'A', text: 'Distribute HTTP/HTTPS traffic based on application data such as URLs, headers, and cookies.', correct: true },
+        { id: 'B', text: 'Format physical RAM memory chips.' },
+        { id: 'C', text: 'Encrypt client hard drives.' }
       ]
     };
   }
 
-  // 10. AUTHENTICATION JWT
-  if (dUpper.includes('AUTH') || dUpper.includes('AUTHENTICATION')) {
+  // 13. AUTHENTICATION JWT
+  if (topicLower.includes('jwt') || topicLower.includes('oauth') || topicLower.includes('session') || topicLower.includes('cookie') || topicLower.includes('auth')) {
     return {
       hasSimulation: true,
       visualType: 'JWT_TOKEN',
@@ -391,29 +533,27 @@ function verifyJWT(req, res, next) {
     };
   }
 
-  // DEFAULT DATA STRUCTURES CONCEPT
+  // DEFAULT TOPIC FALLBACK (No specialized visualizer — set visualType to NONE, hasSimulation to false)
   return {
-    hasSimulation: true,
-    visualType: 'TWO_POINTERS',
+    hasSimulation: false,
+    visualType: 'NONE',
     title: foundTopic,
     phase: phaseTitle,
-    subtitle: `Learn & implement ${foundTopic} with linear execution efficiency and optimal space complexity.`,
+    subtitle: `Learn & implement ${foundTopic} with structured technical logic and production standards.`,
     whyMatters: `${foundTopic} is a core technical capability required for engineering evaluations.`,
-    arrayData: [2, 1, 5, 1, 3, 2],
-    codeSnippet: `# ${foundTopic} Implementation
-def execute_day_${dayNum}(arr):
-    # Process elements in linear time
-    return [x * 2 for x in arr]`,
-    quizQuestion: `What is the key optimization objective of ${foundTopic}?`,
+    codeSnippet: `# ${foundTopic} Implementation Example\ndef execute_day_${dayNum}():\n    # ${foundTopic} technical implementation\n    pass`,
+    quizQuestion: `What is the primary technical objective of ${foundTopic}?`,
     quizOptions: [
-      { id: 'A', text: 'Achieve optimal linear or logarithmic execution time with zero runtime errors.', correct: true },
-      { id: 'B', text: 'Increase nested loop iterations.' },
-      { id: 'C', text: 'Bypass memory management.' }
+      { id: 'A', text: `Achieve production-grade technical implementation for ${foundTopic}.`, correct: true },
+      { id: 'B', text: 'Bypass technical evaluation constraints.' },
+      { id: 'C', text: 'Increase execution runtime artificially.' }
     ]
   };
 }
 
+
 const STEPS = [
+
   { num: 1, key: 'understand', label: '01 UNDERSTAND' },
   { num: 2, key: 'see',        label: '02 SEE IT' },
   { num: 3, key: 'try',        label: '03 TRY IT' },
@@ -427,10 +567,79 @@ const DailyConcept = () => {
 
   // Selected Domain locked to user's active goal
   const selectedDomain = user?.goal || location.state?.domain || USER_PROFILE.targetRole || 'DATA STRUCTURES';
-  const [currentDayNum, setCurrentDayNum] = useState(location.state?.day || 5);
+  const [currentDayNum, setCurrentDayNum] = useState(location.state?.day || user?.currentRoadmapDay || 1);
+  const [isDayCompleted, setIsDayCompleted] = useState(false);
 
-  // Dynamic Concept Data for active Domain and Day!
-  const concept = getConceptForDayAndDomain(selectedDomain, currentDayNum);
+  // Fetch current roadmap day from backend if not provided in location state
+  useEffect(() => {
+    if (!location.state?.day) {
+      api('/api/roadmap/today')
+        .then(res => {
+          if (res && res.currentDay) {
+            setCurrentDayNum(res.currentDay);
+            if (res.step) setIsDayCompleted(!!res.step.completed);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [location.state]);
+
+  // Check completion status whenever currentDayNum changes
+  useEffect(() => {
+    let isMounted = true;
+    api('/api/roadmap')
+      .then(allSteps => {
+        if (isMounted && Array.isArray(allSteps)) {
+          const matchingStep = allSteps.find(s => s.day === Number(currentDayNum));
+          if (matchingStep) {
+            setIsDayCompleted(!!matchingStep.completed);
+          }
+        }
+      })
+      .catch(() => {});
+    return () => { isMounted = false; };
+  }, [currentDayNum]);
+
+  const toggleDayCompletion = async () => {
+    const nextState = !isDayCompleted;
+    setIsDayCompleted(nextState);
+    try {
+      const res = await api(`/api/roadmap/${currentDayNum}/complete`, {
+        method: 'PATCH',
+        body: JSON.stringify({ completed: nextState })
+      });
+      if (res) {
+        window.dispatchEvent(new CustomEvent('gdx_roadmap_updated'));
+      }
+    } catch {
+      setIsDayCompleted(!nextState);
+    }
+  };
+
+  const [loadingAi, setLoadingAi] = useState(false);
+  const [aiConcept, setAiConcept] = useState(null);
+
+  // Fetch dynamic AI concept when day changes
+  useEffect(() => {
+    let isMounted = true;
+    setLoadingAi(true);
+    api(`/api/roadmap/concept/${currentDayNum}`)
+      .then(res => {
+        if (isMounted && res && res.concept) {
+          setAiConcept(res.concept);
+        }
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (isMounted) setLoadingAi(false);
+      });
+
+    return () => { isMounted = false; };
+  }, [currentDayNum]);
+
+  // Dynamic Concept Data combining Gemini AI output with fallback templates
+  const fallbackConcept = getConceptForDayAndDomain(selectedDomain, currentDayNum);
+  const concept = aiConcept ? { ...fallbackConcept, ...aiConcept } : fallbackConcept;
 
   const [activeStep, setActiveStep] = useState(1);
   const [completedSteps, setCompletedSteps] = useState(new Set());
@@ -456,7 +665,7 @@ const DailyConcept = () => {
     setSimIndex(0);
     setMatrixCell({ r: 0, c: 0 });
     setBinarySearchPointers({ low: 0, mid: 4, high: 9 });
-  }, [selectedDomain, currentDayNum]);
+  }, [selectedDomain, currentDayNum, aiConcept]);
 
   const markComplete = (stepNum) => {
     setCompletedSteps(prev => new Set([...prev, stepNum]));
@@ -635,7 +844,7 @@ const DailyConcept = () => {
 
       {/* Header Banner */}
       <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl p-6 md:p-8 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6">
-        <div className="space-y-2">
+        <div className="space-y-3 flex-1">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="px-3 py-1 bg-amber-100 dark:bg-amber-950/60 text-amber-900 dark:text-amber-300 rounded-full text-xs font-mono font-bold">
               DAILY MICRO-LESSON · DAY {currentDayNum}
@@ -643,6 +852,11 @@ const DailyConcept = () => {
             <span className="px-3 py-1 bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 rounded-full text-xs font-mono font-bold">
               {selectedDomain}
             </span>
+            {isDayCompleted && (
+              <span className="px-3 py-1 bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 rounded-full text-xs font-mono font-bold flex items-center gap-1">
+                <CheckCircle2 size={12} /> COMPLETED
+              </span>
+            )}
           </div>
 
           <h1 className="text-3xl md:text-4xl font-extrabold font-display text-zinc-900 dark:text-white tracking-tight">
@@ -651,6 +865,32 @@ const DailyConcept = () => {
           <p className="text-xs text-zinc-500 font-medium">
             {concept.subtitle}
           </p>
+
+          {/* DAY NAVIGATION */}
+          <div className="pt-2 flex flex-wrap items-center gap-3">
+            {/* Prev Day */}
+            <button
+              onClick={() => setCurrentDayNum(prev => Math.max(1, prev - 1))}
+              disabled={currentDayNum <= 1}
+              className="px-3 py-1.5 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 rounded-xl text-xs font-bold flex items-center gap-1 disabled:opacity-40 transition-all"
+            >
+              <ChevronLeft size={14} /> Day {Math.max(1, currentDayNum - 1)}
+            </button>
+
+            {/* Day Counter */}
+            <span className="text-xs font-mono font-bold text-zinc-500">
+              Day {currentDayNum} of 28
+            </span>
+
+            {/* Next Day */}
+            <button
+              onClick={() => setCurrentDayNum(prev => Math.min(28, prev + 1))}
+              disabled={currentDayNum >= 28}
+              className="px-3 py-1.5 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 rounded-xl text-xs font-bold flex items-center gap-1 disabled:opacity-40 transition-all"
+            >
+              Day {Math.min(28, currentDayNum + 1)} <ChevronRight size={14} />
+            </button>
+          </div>
         </div>
 
         <button
@@ -1021,6 +1261,118 @@ const DailyConcept = () => {
                   })}
                 </div>
               )}
+
+              {/* MODE 11: DATABASE NORMALIZATION (1NF, 2NF, 3NF) VISUALIZER */}
+              {concept.visualType === 'NORMALIZATION' && (
+                <div className="space-y-3 py-2 font-mono text-xs">
+                  {[
+                    { form: 'UNNORMALIZED TABLE', desc: 'Repeating column groups & non-atomic multi-valued attributes.', table: 'Students(id, name, courses)' },
+                    { form: '1NF (FIRST NORMAL FORM)', desc: 'Atomic column values & unique primary key established.', table: 'Enrollments(student_id, course_name)' },
+                    { form: '2NF (SECOND NORMAL FORM)', desc: 'Eliminated partial dependencies on composite primary key.', table: 'Students(id, name) + Courses(id, title)' },
+                    { form: '3NF (THIRD NORMAL FORM)', desc: 'Eliminated transitive dependencies (non-prime -> non-prime).', table: 'Students + Courses + Enrollments(s_id, c_id, grade)' }
+                  ].map((norm, idx) => {
+                    const isActive = idx === simIndex % 4;
+                    return (
+                      <div
+                        key={norm.form}
+                        className={`p-3.5 rounded-2xl border-2 transition-all ${
+                          isActive ? 'bg-[#F5C542] text-zinc-950 border-[#F5C542] font-extrabold scale-102 shadow-lg shadow-amber-500/10' : 'bg-zinc-800 text-zinc-300 border-zinc-700'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-extrabold">{norm.form}</span>
+                          {isActive && <span className="text-[9px] bg-zinc-950 text-[#F5C542] px-2 py-0.5 rounded-full uppercase">DECOMPOSITION STEP</span>}
+                        </div>
+                        <p className="text-[11px] opacity-80 mt-1">{norm.desc}</p>
+                        <div className="text-[10px] font-mono text-amber-400 mt-1 bg-zinc-950/60 p-2 rounded-xl">
+                          Normalized Schema: {norm.table}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* MODE 12: SQL JOIN VISUALIZER */}
+              {concept.visualType === 'SQL_JOIN' && (
+                <div className="space-y-3 py-2 font-mono text-xs">
+                  {[
+                    { join: 'TABLE A (Users)', data: 'id: 1 (Alice), id: 2 (Bob), id: 3 (Charlie)' },
+                    { join: 'TABLE B (Orders)', data: 'user_id: 1 ($100), user_id: 2 ($50)' },
+                    { join: 'JOIN PREDICATE', data: 'Users.user_id = Orders.user_id' },
+                    { join: 'INNER JOIN RESULT', data: '2 Matched Rows: (Alice -> $100), (Bob -> $50)' }
+                  ].map((j, idx) => {
+                    const isActive = idx === simIndex % 4;
+                    return (
+                      <div key={j.join} className={`p-3.5 rounded-2xl border-2 transition-all ${isActive ? 'bg-[#F5C542] text-zinc-950 border-[#F5C542] font-bold' : 'bg-zinc-800 text-zinc-300 border-zinc-700'}`}>
+                        <div className="font-extrabold">{j.join}</div>
+                        <div className="text-[11px] opacity-80 mt-0.5">{j.data}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* MODE 13: ACID TRANSACTION VISUALIZER */}
+              {concept.visualType === 'ACID_TRANSACTION' && (
+                <div className="grid grid-cols-2 gap-3 py-2 font-mono text-xs">
+                  {[
+                    { prop: 'A - ATOMICITY', desc: 'All-or-Nothing execution with automatic rollback.' },
+                    { prop: 'C - CONSISTENCY', desc: 'Valid state transitions satisfying all DB constraints.' },
+                    { prop: 'I - ISOLATION', desc: 'Concurrent transactions do not corrupt execution states.' },
+                    { prop: 'D - DURABILITY', desc: 'Committed transactions survive crashes (WAL write).' }
+                  ].map((acid, idx) => {
+                    const isActive = idx === simIndex % 4;
+                    return (
+                      <div key={acid.prop} className={`p-3.5 rounded-2xl border-2 transition-all ${isActive ? 'bg-[#F5C542] text-zinc-950 border-[#F5C542] font-bold' : 'bg-zinc-800 text-zinc-300 border-zinc-700'}`}>
+                        <div className="font-extrabold">{acid.prop}</div>
+                        <div className="text-[10px] opacity-80 mt-1">{acid.desc}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* MODE 14: REDIS CACHE VISUALIZER */}
+              {concept.visualType === 'REDIS_CACHE' && (
+                <div className="space-y-3 py-2 font-mono text-xs">
+                  {[
+                    { stage: '1. CLIENT REQUEST', desc: 'GET /api/user/101' },
+                    { stage: '2. REDIS LOOKUP', desc: 'Checking key user:101 in RAM Cache...' },
+                    { stage: '3. CACHE MISS -> DB QUERY', desc: 'Fetching from SQL database (45ms)' },
+                    { stage: '4. CACHE WRITE & RETURN', desc: 'Saved to Redis (TTL 3600s). Returned to client (<2ms next time)!' }
+                  ].map((c, idx) => {
+                    const isActive = idx === simIndex % 4;
+                    return (
+                      <div key={c.stage} className={`p-3.5 rounded-2xl border-2 transition-all ${isActive ? 'bg-[#F5C542] text-zinc-950 border-[#F5C542] font-bold' : 'bg-zinc-800 text-zinc-300 border-zinc-700'}`}>
+                        <div className="font-extrabold">{c.stage}</div>
+                        <div className="text-[11px] opacity-80 mt-0.5">{c.desc}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* MODE 15: SYSTEM ARCHITECTURE VISUALIZER */}
+              {concept.visualType === 'SYSTEM_ARCHITECTURE' && (
+                <div className="space-y-3 py-2 font-mono text-xs">
+                  {[
+                    { node: '1. CLIENT REQUEST', desc: 'HTTPS Request from Web/Mobile client' },
+                    { node: '2. LOAD BALANCER', desc: 'Nginx Layer 7 Round-Robin distribution' },
+                    { node: '3. API GATEWAY', desc: 'Authentication, Rate Limiting & Service Routing' },
+                    { node: '4. MICROSERVICES & DB', desc: 'Stateless Service -> Distributed DB / Redis' }
+                  ].map((sa, idx) => {
+                    const isActive = idx === simIndex % 4;
+                    return (
+                      <div key={sa.node} className={`p-3.5 rounded-2xl border-2 transition-all ${isActive ? 'bg-[#F5C542] text-zinc-950 border-[#F5C542] font-bold' : 'bg-zinc-800 text-zinc-300 border-zinc-700'}`}>
+                        <div className="font-extrabold">{sa.node}</div>
+                        <div className="text-[11px] opacity-80 mt-0.5">{sa.desc}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
 
               {/* Simulation Trace Log */}
               <div className="space-y-1.5 text-[11px] font-mono bg-zinc-950 p-3 rounded-xl max-h-32 overflow-y-auto border border-zinc-800">

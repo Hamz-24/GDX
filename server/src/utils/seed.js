@@ -25,61 +25,38 @@ export async function seedDemoIfEmpty() {
       lastActive: new Date()
     });
 
-    const steps = [
-      {
-        userId: user._id,
-        week: 1,
-        day: 1,
-        phaseName: 'Foundation',
-        dayName: 'React 19 & Hooks Refresher',
-        context: 'We are starting with a deep dive into the latest features of React 19 and advanced hooks patterns. Focus on useTransition and useActionState.',
-        completed: true,
-        tasks: [
-          { taskId: 't1_1', title: 'Read React 19 documentation on useTransition', completed: true },
-          { taskId: 't1_2', title: 'Build a small form using useActionState', completed: true }
-        ]
-      },
-      {
-        userId: user._id,
-        week: 1,
-        day: 2,
-        phaseName: 'Foundation',
-        dayName: 'Next.js App Router Architecture',
-        context: 'Explore the server-first architecture of Next.js App Router. Understand Server Components vs Client Components.',
-        completed: true,
-        tasks: [
-          { taskId: 't2_1', title: 'Create a Next.js project using App Router', completed: true },
-          { taskId: 't2_2', title: 'Convert a Client Component to a Server Component', completed: true },
-          { taskId: 't2_3', title: 'Implement a nested layout', completed: true }
-        ]
-      },
-      {
-        userId: user._id,
-        week: 1,
-        day: 3,
-        phaseName: 'Data Layer',
-        dayName: 'Data Fetching & Caching',
-        context: 'Today you will learn how Next.js handles data fetching natively with fetch() extensions, and how caching and ISR work.',
-        completed: false,
-        tasks: [
-          { taskId: 't3_1', title: 'Fetch data from a public API in a Server Component', completed: false },
-          { taskId: 't3_2', title: 'Implement revalidate tags for on-demand caching', completed: false }
-        ]
-      },
-      {
-        userId: user._id,
-        week: 1,
-        day: 4,
-        phaseName: 'Data Layer',
-        dayName: 'Server Actions & Mutations',
-        context: 'Moving beyond fetching, let\'s look at mutating data securely from the Server using Next.js Server Actions.',
-        completed: false,
-        tasks: [
-          { taskId: 't4_1', title: 'Create a Server Action to submit a form', completed: false },
-          { taskId: 't4_2', title: 'Handle pending states with useFormStatus', completed: false }
-        ]
-      }
+    const weekPhases = [
+      { week: 1, name: 'Foundation', topics: ['React 19 & Hooks Refresher', 'Next.js App Router Architecture', 'Data Fetching & Caching', 'Server Actions & Mutations', 'Optimistic UI Updates', 'Form Handling with useActionState', 'Week 1 Architecture Review'] },
+      { week: 2, name: 'Architecture & State', topics: ['Context API vs Zustand', 'Server Components vs Client Components', 'Middleware & Authentication', 'Route Handlers & REST APIs', 'Zod Schema Validation', 'SSR Performance Tuning', 'Week 2 State & API Review'] },
+      { week: 3, name: 'Database & Performance', topics: ['Mongoose & Prisma ORM Setup', 'Database Indexing & Query Optimization', 'Redis In-Memory Caching Layer', 'Connection Pooling Strategies', 'Edge Functions & Middleware', 'SSG & ISR Revalidation', 'Week 3 Performance Sprint'] },
+      { week: 4, name: 'Production & Security', topics: ['Dockerization & Containerization', 'CI/CD Pipeline with GitHub Actions', 'OWASP Security Audit & Mitigations', 'Sentry Telemetry & Error Tracking', 'Load Testing & Benchmarks', 'Zero-Downtime Deployment', 'Week 4 Capstone Graduation'] }
     ];
+
+    const steps = [];
+    let absoluteDay = 1;
+
+    for (const phase of weekPhases) {
+      for (let dayInWeek = 1; dayInWeek <= 7; dayInWeek++) {
+        const currentDay = absoluteDay++;
+        const topic = phase.topics[dayInWeek - 1];
+        const isCompleted = currentDay <= 2;
+
+        steps.push({
+          userId: user._id,
+          week: phase.week,
+          day: currentDay,
+          phaseName: phase.name,
+          dayName: topic,
+          context: `Mastering ${topic} in ${user.goal}.`,
+          completed: isCompleted,
+          tasks: [
+            { taskId: `w${phase.week}-d${currentDay}-t1`, title: `Study documentation for ${topic}`, completed: isCompleted },
+            { taskId: `w${phase.week}-d${currentDay}-t2`, title: `Implement hands-on code for ${topic}`, completed: isCompleted },
+            { taskId: `w${phase.week}-d${currentDay}-t3`, title: `Complete verifiable exercise for ${topic}`, completed: false }
+          ]
+        });
+      }
+    }
 
     await RoadmapStep.insertMany(steps);
 

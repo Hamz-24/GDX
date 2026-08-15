@@ -15,6 +15,16 @@ const api = async (path, options = {}) => {
 
   try {
     const res = await fetch(`${API_URL}${path}`, { ...options, headers });
+    
+    if (res.status === 401) {
+      localStorage.removeItem('guidex_token');
+      localStorage.removeItem('guidex_user');
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('gdx_auth_expired'));
+      }
+      throw new Error('Your session has expired. Please sign in again.');
+    }
+
     const data = await res.json();
     if (!res.ok) throw new Error(data.message || 'Request failed');
     return data;
@@ -23,5 +33,6 @@ const api = async (path, options = {}) => {
     throw err;
   }
 };
+
 
 export default api;

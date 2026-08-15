@@ -9,6 +9,15 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const handleAuthExpired = () => {
+      setToken(null);
+      setUser(null);
+    };
+    window.addEventListener('gdx_auth_expired', handleAuthExpired);
+    return () => window.removeEventListener('gdx_auth_expired', handleAuthExpired);
+  }, []);
+
+  useEffect(() => {
     if (token) {
       if (token.startsWith('demo_token_')) {
         // Recover local user state if stored
@@ -33,6 +42,7 @@ export const AuthProvider = ({ children }) => {
       setLoading(false);
     }
   }, [token]);
+
 
   const login = async (email, password) => {
     try {

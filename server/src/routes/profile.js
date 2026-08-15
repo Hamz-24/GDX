@@ -9,12 +9,15 @@ router.use(protect);
 // GET /api/profile
 router.get('/', (req, res) => res.json(req.user));
 
-// PATCH /api/profile
-router.patch('/', async (req, res) => {
+// PUT & PATCH /api/profile
+const updateProfileHandler = async (req, res) => {
   try {
     const { name, goal, level, timelineWeeks } = req.body;
-    const updatePayload = { name, goal, level };
-    if (timelineWeeks) updatePayload.timelineWeeks = timelineWeeks;
+    const updatePayload = {};
+    if (name) updatePayload.name = name;
+    if (goal) updatePayload.goal = goal;
+    if (level) updatePayload.level = level;
+    if (timelineWeeks) updatePayload.timelineWeeks = parseInt(timelineWeeks, 10) || 4;
     
     // Check if goal has fundamentally changed
     if (goal && goal !== req.user.goal) {
@@ -29,6 +32,9 @@ router.patch('/', async (req, res) => {
     ).select('-passwordHash');
     res.json(updated);
   } catch (err) { res.status(500).json({ message: err.message }); }
-});
+};
+
+router.put('/', updateProfileHandler);
+router.patch('/', updateProfileHandler);
 
 export default router;

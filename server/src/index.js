@@ -1,4 +1,10 @@
-import 'dotenv/config';
+import { config } from 'dotenv';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+const __dirname = dirname(fileURLToPath(import.meta.url));
+config({ path: join(__dirname, '../.env') });
+
+
 import express from 'express';
 import cors from 'cors';
 import mongoose from 'mongoose';
@@ -7,9 +13,10 @@ import { seedDemoIfEmpty } from './utils/seed.js';
 
 // Configure DNS for MongoDB Atlas SRV resolution
 try {
+  dns.setDefaultResultOrder('ipv4first');
   dns.setServers(['8.8.8.8', '1.1.1.1']);
 } catch {
-  /* Ignore DNS override if un supported */
+  /* Ignore DNS override if unsupported */
 }
 
 // Routes
@@ -28,7 +35,9 @@ const PORT = process.env.PORT || 5000;
 
 // --- Middleware ---
 app.use(cors({ origin: process.env.CLIENT_URL || '*', credentials: true }));
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ limit: '10mb', extended: true }));
+
 
 // --- Routes ---
 app.use('/api/auth', authRoutes);

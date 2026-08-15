@@ -42,50 +42,41 @@ async function seed() {
     await VaultItem.deleteMany({ userId: user._id });
     await Task.deleteMany({ userId: user._id });
 
-    const steps = [
-      {
-        userId: user._id,
-        week: 1,
-        day: 1,
-        phaseName: 'Arrays & Memory',
-        dayName: 'Day 1: Array Fundamentals & Memory Layout',
-        context: 'Contiguous RAM allocation, base address offset arithmetic, O(1) index access.',
-        completed: true,
-        tasks: [
-          { taskId: 't1_1', title: 'Learn array indexing formula: base + index * size', completed: true },
-          { taskId: 't1_2', title: 'Implement static vs dynamic array in Python', completed: true }
-        ]
-      },
-      {
-        userId: user._id,
-        week: 1,
-        day: 2,
-        phaseName: 'Arrays & Memory',
-        dayName: 'Day 2: Two-Pointer Technique (In-Place Swaps)',
-        context: 'Left/right pointer convergence, array reversal in O(1) auxiliary space.',
-        completed: true,
-        tasks: [
-          { taskId: 't2_1', title: 'Reverse an array in-place using left and right pointers', completed: true },
-          { taskId: 't2_2', title: 'Solve Two Sum in a sorted array', completed: true }
-        ]
-      },
-      {
-        userId: user._id,
-        week: 1,
-        day: 3,
-        phaseName: 'Arrays & Memory',
-        dayName: 'Day 3: Sliding Window Pattern (Fixed & Variable)',
-        context: 'Master sub-array optimization without O(N^2) nested loops.',
-        completed: false,
-        tasks: [
-          { taskId: 't3_1', title: 'Implement fixed size sliding window sum', completed: false },
-          { taskId: 't3_2', title: 'Solve LeetCode #209: Minimum Size Subarray Sum', completed: false }
-        ]
-      }
+    const weekPhases = [
+      { week: 1, name: 'Arrays & Memory Layout', topics: ['Array Memory Layout & Base Addressing', 'Two-Pointer Technique & Array Reversal', 'Sliding Window Pattern (Fixed & Variable)', '2D Matrix Storage & Grid Traversals', 'Prefix Sums & Range Queries', 'Binary Search Space Reduction', 'Week 1 Problem Sprint & Review'] },
+      { week: 2, name: 'Linked Lists & Stacks', topics: ['Singly Linked List Node Allocation', 'Reversing Linked Lists & Fast/Slow Pointers', 'Doubly Linked Lists & Sentinel Nodes', 'Stack LIFO & Call Stack Mechanics', 'Monotonic Stack Pattern', 'Queue FIFO & Circular Queue Arrays', 'Week 2 Sprint: Valid Parentheses'] },
+      { week: 3, name: 'Trees & Graph Traversals', topics: ['Recursion & Call Stack Frames', 'Binary Tree DFS (Pre, In, Post)', 'BST Invariant & Balanced Search', 'Level-Order Traversal (BFS)', 'Graph Adjacency List vs Matrix', 'Graph DFS vs BFS Traversal', 'Week 3 Sprint: Invert Tree & Graph Cycles'] },
+      { week: 4, name: 'Heaps, Sorting & DP', topics: ['Hash Tables & Collision Resolution', 'Binary Heap & Priority Queue Operations', 'O(N log N) Sorting (Merge vs Quick)', 'Intro to DP: Top-Down Memoization', 'Bottom-Up DP Tabulation', 'Full Big-O Complexity Cheat Sheet', 'Week 4 Capstone Mock Interview'] }
     ];
 
+    const steps = [];
+    let absoluteDay = 1;
+
+    for (const phase of weekPhases) {
+      for (let dayInWeek = 1; dayInWeek <= 7; dayInWeek++) {
+        const currentDay = absoluteDay++;
+        const topic = phase.topics[dayInWeek - 1];
+        const isCompleted = currentDay <= 2;
+
+        steps.push({
+          userId: user._id,
+          week: phase.week,
+          day: currentDay,
+          phaseName: phase.name,
+          dayName: topic,
+          context: `Mastering ${topic} in ${user.goal}.`,
+          completed: isCompleted,
+          tasks: [
+            { taskId: `w${phase.week}-d${currentDay}-t1`, title: `Study ${topic}`, completed: isCompleted },
+            { taskId: `w${phase.week}-d${currentDay}-t2`, title: `Solve practice problems for ${topic}`, completed: isCompleted },
+            { taskId: `w${phase.week}-d${currentDay}-t3`, title: `Review edge cases for ${topic}`, completed: false }
+          ]
+        });
+      }
+    }
+
     await RoadmapStep.insertMany(steps);
-    console.log('✅ Roadmap collection seeded');
+    console.log('✅ 4-Week Roadmap collection seeded (28 Days)');
 
     const today = new Date();
     const yesterday = new Date(today); yesterday.setDate(yesterday.getDate() - 1);

@@ -51,7 +51,32 @@ const FocusConsole = () => {
     });
   };
 
-  const handleSaveReflection = () => {
+  const [isSaving, setIsSaving] = useState(false);
+
+  const saveFocusSession = async (notesText = reflection) => {
+    if (isSaving) return;
+    setIsSaving(true);
+    try {
+      await api('/api/focus', {
+        method: 'POST',
+        body: JSON.stringify({
+          duration: initialMinutes,
+          durationMinutes: initialMinutes,
+          task: activeTask?.title || 'Focus Session',
+          taskId: activeTask?._id || activeTask?.id,
+          notes: notesText
+        })
+      });
+      window.dispatchEvent(new CustomEvent('gdx_focus_updated'));
+    } catch (err) {
+      console.warn('Focus session log failed:', err.message);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleSaveReflection = async () => {
+    await saveFocusSession(reflection);
     navigate('/tasks');
   };
 

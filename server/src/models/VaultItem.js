@@ -7,6 +7,8 @@ const vaultItemSchema = new mongoose.Schema({
   category: { type: String, default: 'Personal Notes' },
   content: { type: String, default: '' },
   summary: { type: String, default: '' },
+  fileUrl: { type: String, default: '' },
+  fileName: { type: String, default: '' },
   tags: [{ type: String }],
 }, { timestamps: true });
 
