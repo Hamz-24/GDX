@@ -20,17 +20,19 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     if (token) {
       if (token.startsWith('demo_token_')) {
-        // Recover local user state if stored
         const savedUser = localStorage.getItem('guidex_user');
         if (savedUser) {
           try { setUser(JSON.parse(savedUser)); } catch { /* ignore */ }
+        } else {
+          const guestUser = { name: 'Developer', email: 'demo@student.com', goal: 'DATA STRUCTURES', level: 'intermediate', timelineWeeks: 4 };
+          setUser(guestUser);
+          localStorage.setItem('guidex_user', JSON.stringify(guestUser));
         }
         setLoading(false);
       } else {
         api('/api/auth/me')
           .then(u => setUser(u))
           .catch(() => {
-            // Keep user session if token exists
             const savedUser = localStorage.getItem('guidex_user');
             if (savedUser) {
               try { setUser(JSON.parse(savedUser)); } catch { /* ignore */ }
@@ -39,6 +41,12 @@ export const AuthProvider = ({ children }) => {
           .finally(() => setLoading(false));
       }
     } else {
+      const guestToken = 'demo_token_' + Date.now();
+      const guestUser = { name: 'Developer', email: 'demo@student.com', goal: 'DATA STRUCTURES', level: 'intermediate', timelineWeeks: 4 };
+      localStorage.setItem('guidex_token', guestToken);
+      localStorage.setItem('guidex_user', JSON.stringify(guestUser));
+      setToken(guestToken);
+      setUser(guestUser);
       setLoading(false);
     }
   }, [token]);
