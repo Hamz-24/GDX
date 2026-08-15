@@ -21,7 +21,11 @@ const updateProfileHandler = async (req, res) => {
     
     // Check if goal has fundamentally changed
     if (goal && goal !== req.user.goal) {
-       await RoadmapStep.deleteMany({ userId: req.user._id });
+       // Deactivate previous Core Roadmap versions safely (NEVER delete historical records or project sprints!)
+       await RoadmapStep.updateMany(
+         { userId: req.user._id, roadmapType: 'core' },
+         { $set: { isActive: false } }
+       );
        updatePayload.currentRoadmapDay = 1;
     }
 

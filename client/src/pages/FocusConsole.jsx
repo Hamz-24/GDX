@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Sparkles, ArrowRight, CheckCircle2, RotateCcw, X, Play, Pause, Save } from 'lucide-react';
 import { TASKS_TODAY, USER_PROFILE } from '../constants/userProfile';
+import api from '../utils/api';
 
 const FocusConsole = () => {
   const navigate = useNavigate();
