@@ -25,7 +25,15 @@ const runMigration = async (userId) => {
   try {
     await RoadmapStep.updateMany(
       { userId, roadmapType: { $exists: false } },
-      { $set: { roadmapType: 'core', projectId: null, projectName: null } }
+      { $set: { roadmapType: 'core', roadmapVersion: 1, isActive: true, source: 'initial', projectId: null, projectName: null } }
+    );
+    await RoadmapStep.updateMany(
+      { userId, roadmapType: 'core', roadmapVersion: { $exists: false } },
+      { $set: { roadmapVersion: 1, isActive: true, source: 'initial' } }
+    );
+    await RoadmapStep.updateMany(
+      { userId, roadmapType: 'core', isActive: { $exists: false } },
+      { $set: { isActive: true } }
     );
 
     const legacyProjectSteps = await RoadmapStep.find({ userId, phaseName: 'Project Sprint', roadmapType: 'core' });
@@ -185,53 +193,90 @@ Create a comprehensive, day-by-day learning roadmap that takes the user from the
 
 ## Rules
 1. Generate EXACTLY ${weeks * 7} day objects, one for each day.
-2. Every single day MUST introduce a unique CONCEPT or TOPIC.
-3. Each day must include a context field: a brief mission briefing.
-4. Each day must have 2-4 tasks that are granular and verifiable.
-5. Task IDs must follow the pattern "w{week}-d{day}-t{taskNumber}".`;
+2. Every single day MUST introduce a unique CONCEPT or TOPIC strictly relevant to "${goal}".
+3. DO NOT introduce unrelated framework concepts (e.g. Do NOT include React, Next.js, or Frontend terms in a Data Structures roadmap).
+4. Each day must include a context field: a brief mission briefing explaining why this day's topic matters in "${goal}".
+5. Each day must have 2-4 tasks that are granular and verifiable.
+6. Task IDs must follow the pattern "w{week}-d{day}-t{taskNumber}".`;
 };
 
-// ─── SMART FALLBACK GENERATOR ───
+// ─── CONTENT RELEVANCE VALIDATOR ───
+const validateRoadmapRelevance = (goal, steps) => {
+  if (!steps || !Array.isArray(steps) || steps.length === 0) return false;
+  const gUpper = (goal || '').toUpperCase();
+
+  if (gUpper.includes('DATA STRUCTURES') || gUpper.includes('ALGORITHM') || gUpper.includes('DSA')) {
+    const forbiddenKeywords = ['REACT 19', 'NEXT.JS', 'ZUSTAND', 'SOLID PRINCIPLES', 'REDUX', 'DOCKERIZATION', 'EXPRESS MIDDLEWARE'];
+    const hasForbidden = steps.some(s => {
+      const text = `${s.dayName || ''} ${s.context || ''} ${JSON.stringify(s.tasks || [])}`.toUpperCase();
+      return forbiddenKeywords.some(kw => text.includes(kw));
+    });
+    if (hasForbidden) return false;
+  }
+  return true;
+};
+
+// ─── SMART DOMAIN FALLBACK GENERATOR ───
 const generateSmartFallback = (goal, level, weeks) => {
-  const phases = {
-    beginner: [
-      { theme: 'Foundation & Environment', tasks: ['Install core tooling', 'Configure workspace', 'Initial "Hello World"', 'CLI basics', 'Project structure', 'Mental models', 'Basic syntax'] },
-      { theme: 'Core Language Concepts', tasks: ['Data types', 'Variables & scoping', 'Control flow', 'Functions', 'Basic IO', 'Error basics', 'Simple algorithms'] },
-      { theme: 'Intermediate Patterns', tasks: ['Classes/Objects', 'Modules', 'Collections', 'Async patterns', 'Unit testing', 'Refactoring', 'API basics'] },
-      { theme: 'Applied Implementation', tasks: ['Build mini-tool', 'Database basics', 'Debugging suite', 'Deployment prep', 'Documentation', 'Peer review', 'Performance basics'] },
-    ],
-    intermediate: [
-      { theme: 'Architecture & Design', tasks: ['SOLID principles', 'Design patterns', 'Modularization', 'State management', 'API design', 'Middleware', 'Schema design'] },
-      { theme: 'Scaling & Performance', tasks: ['Profiling', 'Caching', 'Concurrency', 'DB optimization', 'Network perf', 'Cold starts', 'Load balancing'] },
-      { theme: 'Testing & Reliability', tasks: ['Integration tests', 'Mocking', 'CI/CD pipelines', 'Security audit', 'Error boundaries', 'Logging', 'Telemetry'] },
-      { theme: 'Production Deployment', tasks: ['Dockerization', 'Cloud provider setup', 'Monitoring', 'Logging', 'Scale strategy', 'DR plan', 'Post-mortem'] },
-    ],
-  };
+  const gUpper = (goal || '').toUpperCase();
+  let domainCurriculum = [];
 
-  const levelPhases = phases[level] || phases.beginner;
+  if (gUpper.includes('DATA STRUCTURES') || gUpper.includes('ALGORITHM') || gUpper.includes('DSA')) {
+    domainCurriculum = [
+      { theme: 'Foundations & Linear Structures', topics: ['Arrays & Dynamic Array Memory Layout', 'String Manipulation & Substring Algorithms', 'Singly Linked Lists & Pointer Operations', 'Doubly Linked Lists & Circular Lists', 'Stacks & LIFO Operations', 'Queues & Deques (Double-Ended Queues)', 'Array vs Linked List Algorithmic Tradeoffs'] },
+      { theme: 'Non-Linear & Tree Structures', topics: ['Binary Trees & Traversals (DFS/BFS)', 'Binary Search Trees (BST) & Search Property', 'AVL Trees & Self-Balancing Rotations', 'Heaps & Priority Queue Operations', 'Hash Tables & Collision Resolution Strategies', 'Trie (Prefix Tree) Data Structure', 'Union-Find & Disjoint Set Union (DSU)'] },
+      { theme: 'Graph Algorithms & Advanced Structures', topics: ['Graph Representations (Adjacency Matrix & List)', 'Breadth-First Search (BFS) & Shortest Path', 'Depth-First Search (DFS) & Topological Sorting', 'Dijkstra\'s Shortest Path Algorithm', 'Kruskal\'s & Prim\'s Minimum Spanning Tree (MST)', 'Segment Trees & Range Query Operations', 'Monotonic Stack & Sliding Window Patterns'] },
+      { theme: 'Dynamic Programming & Algorithmic Complexity', topics: ['Dynamic Programming (Memoization vs Tabulation)', '0/1 Knapsack & Subset Sum Problems', 'Longest Common Subsequence & Edit Distance', 'Backtracking Patterns & N-Queens', 'Greedy Choice Property & Proofs', 'Bit Manipulation Techniques & Bitmasks', 'Big-O Time & Space Complexity Analysis'] }
+    ];
+  } else if (gUpper.includes('SYSTEM DESIGN') || gUpper.includes('ARCHITECTURE')) {
+    domainCurriculum = [
+      { theme: 'Scalability & Core Principles', topics: ['Vertical vs Horizontal Scaling Fundamentals', 'Load Balancers & Layer 4/7 Traffic Routing', 'Consistent Hashing & Distributed Hash Tables', 'Forward vs Reverse Proxies (Nginx/HAProxy)', 'CDN Content Delivery Networks & Edge Caching', 'API Gateway Patterns & Rate Limiting', 'Stateless vs Stateful Service Architecture'] },
+      { theme: 'Storage & Database Architecture', topics: ['SQL vs NoSQL Database Selection Principles', 'Database Sharding & Data Partitioning', 'Replication Topologies (Master-Slave & Multi-Master)', 'In-Memory Caching Strategies (Redis/Memcached)', 'Cache-Aside, Write-Through & Write-Back Patterns', 'Database Indexing (B-Trees & LSM Trees)', 'CAP Theorem, ACID vs BASE Guarantee Tradeoffs'] },
+      { theme: 'Messaging & Distributed Systems', topics: ['Message Queues (Kafka & RabbitMQ Architecture)', 'Event-Driven Systems & Pub/Sub Patterns', 'Rate Limiting Algorithms (Token & Leaky Bucket)', 'Distributed Locking & Consensus (Zookeeper/Raft)', 'Fault Tolerance, Retries & Circuit Breakers', 'Log Aggregation & Distributed Tracing', 'Microservices vs Monolithic Architecture Tradeoffs'] },
+      { theme: 'Production System Design Case Studies', topics: ['Design a High-Throughput URL Shortener (TinyURL)', 'Design a Real-Time Scalable Chat Application', 'Design a Video Streaming Platform (YouTube/Netflix)', 'Design a Distributed Web Crawler', 'Design a Rate Limiter as a Cloud Service', 'Design a Distributed Unique ID Generator (Snowflake)', 'System Bottleneck Analysis & Load Benchmarking'] }
+    ];
+  } else if (gUpper.includes('BACKEND')) {
+    domainCurriculum = [
+      { theme: 'Core Server Architecture', topics: ['Node.js Event Loop & Non-Blocking I/O', 'RESTful API Design Best Practices', 'Middleware Pipeline & Request Lifecycle', 'Input Validation & Schema Sanitization (Zod/Joi)', 'Environment Configuration & Secrets Management', 'Structured Logging & Tracing (Winston/Pino)', 'Global Error Handling & Exception Boundaries'] },
+      { theme: 'Databases & Persistence Layer', topics: ['Relational Schema Design (PostgreSQL/MySQL)', 'Document Store Data Modeling (MongoDB)', 'Query Optimization & Indexing Strategies', 'Database Migrations & Versioning Systems', 'ORM & Query Builders (Prisma/Mongoose)', 'Database Connection Pooling & Lifecycle', 'Transactions & Isolation Levels'] },
+      { theme: 'Security, Auth & Caching', topics: ['JWT Authentication & Refresh Token Rotation', 'OAuth 2.0 & OpenID Connect Authorization', 'Password Hashing & Salting Strategies (Bcrypt/Argon2)', 'OWASP Top 10 Security Mitigations (CORS, XSS, CSRF)', 'In-Memory Caching with Redis', 'Rate Limiting & Anti-Abuse Controls', 'File Upload Pipeline & Cloud Object Storage (S3)'] },
+      { theme: 'Microservices & Production Deployment', topics: ['Docker Containerization & Multi-Stage Builds', 'CI/CD Pipeline Automation (GitHub Actions)', 'Microservice Inter-Service Communication (gRPC)', 'WebSockets & Real-Time Bidirectional Communication', 'Unit & Integration Testing Suites (Jest/Supertest)', 'Server Health Checks & Graceful Shutdowns', 'Cloud Container Deployment & Load Balancing'] }
+    ];
+  } else if (gUpper.includes('FRONTEND') || gUpper.includes('REACT')) {
+    domainCurriculum = [
+      { theme: 'Core Web & Component Foundations', topics: ['HTML5 Semantic Architecture & ARIA Accessibility', 'Modern CSS Layouts (Flexbox & Grid Systems)', 'JavaScript ES6+ Async Patterns (Promises & Async/Await)', 'DOM Event Bubbling & Performance Optimization', 'Responsive Design & Mobile-First Media Queries', 'CSS Architecture & Utility Frameworks', 'Browser Critical Rendering Path & Web Vitals'] },
+      { theme: 'Component Architecture & State', topics: ['Component Lifecycle & State Management', 'React Hooks Abstraction & Custom Hooks', 'Form Handling & Validation Patterns', 'Component Styling & CSS Modules', 'Client-Side Routing & Dynamic Page Navigation', 'Virtual DOM & Reconciliation Mechanics', 'Context API & Local State Scoping'] },
+      { theme: 'State Management & Performance', topics: ['Global State Management (Zustand/Redux)', 'Server State & Caching (React Query/SWR)', 'SSR (Server-Side Rendering) vs SSG vs ISR', 'Code Splitting & Dynamic Imports', 'Performance Optimization (LCP, CLS, INP)', 'Error Boundaries & Resilient Fallback UI', 'Asset Optimization & Image Processing'] },
+      { theme: 'Testing, Security & Deployment', topics: ['Component Unit Testing (Jest & React Testing Library)', 'End-to-End Testing Suite (Playwright/Cypress)', 'Web Security Mitigations (XSS, CSP Headers)', 'Progressive Web Apps (PWA) & Service Workers', 'Build Tooling & Bundling (Vite/Webpack)', 'CI/CD Pipeline & Continuous Deployment', 'Production Error Monitoring & Analytics'] }
+    ];
+  } else {
+    domainCurriculum = [
+      { theme: `${goal} Core Foundations`, topics: [`${goal} Environment Setup`, `${goal} Basic Concepts`, `${goal} Syntax & Rules`, `${goal} Scoping & Functions`, `${goal} Control Flow`, `${goal} Data Handling`, `${goal} Week 1 Review`] },
+      { theme: `${goal} Intermediate Principles`, topics: [`${goal} Modularization`, `${goal} Architecture Patterns`, `${goal} Error Handling`, `${goal} Testing Basics`, `${goal} Refactoring`, `${goal} API Integration`, `${goal} Week 2 Review`] },
+      { theme: `${goal} Advanced Mastery`, topics: [`${goal} Performance Optimization`, `${goal} Security Best Practices`, `${goal} Scalability Controls`, `${goal} Database Integration`, `${goal} Async Pipelines`, `${goal} Telemetry & Logging`, `${goal} Week 3 Review`] },
+      { theme: `${goal} Production Deployment`, topics: [`${goal} Containerization`, `${goal} CI/CD Automation`, `${goal} Monitoring & Alerts`, `${goal} Production Benchmarking`, `${goal} Security Audit`, `${goal} High-Availability Setup`, `${goal} Capstone Final Polish`] }
+    ];
+  }
+
   const fallback = [];
-
   for (let d = 1; d <= weeks * 7; d++) {
     const weekNum = Math.ceil(d / 7);
-    const phaseIndex = Math.min(weekNum - 1, levelPhases.length - 1);
-    const phase = levelPhases[phaseIndex];
+    const phaseIndex = Math.min(weekNum - 1, domainCurriculum.length - 1);
+    const phase = domainCurriculum[phaseIndex];
     const dayInWeek = ((d - 1) % 7) + 1;
-
-    const primaryTask = phase.tasks[(dayInWeek - 1) % phase.tasks.length];
-    const r1 = phase.tasks[(dayInWeek - 2 + phase.tasks.length) % phase.tasks.length];
-    const r2 = phase.tasks[(dayInWeek - 3 + phase.tasks.length) % phase.tasks.length];
+    const topic = phase.topics[(dayInWeek - 1) % phase.topics.length];
 
     fallback.push({
       userId: null,
       week: weekNum,
       day: d,
       phaseName: `PHASE_${weekNum}: ${phase.theme}`,
-      dayName: `${goal} - SEC_${d}: ${primaryTask}`,
-      context: `Mission protocol engaged: Deep-diving into ${primaryTask} to establish cognitive dominance in ${goal}.`,
+      dayName: `${goal} - SEC_${d}: ${topic}`,
+      context: `Mission protocol engaged: Deep-diving into ${topic} to establish cognitive dominance in ${goal}.`,
       tasks: [
-        { taskId: `w${weekNum}-d${d}-t1`, title: `[PRIMARY MISSION] ${primaryTask} implementation`, completed: false },
-        { taskId: `w${weekNum}-d${d}-t2`, title: `[NEURAL REINFORCEMENT] ${r1} optimized practice`, completed: false },
-        { taskId: `w${weekNum}-d${d}-t3`, title: `[NEURAL REINFORCEMENT] ${r2} legacy review`, completed: false },
+        { taskId: `w${weekNum}-d${d}-t1`, title: `[PRIMARY MISSION] Master ${topic}`, completed: false },
+        { taskId: `w${weekNum}-d${d}-t2`, title: `[PRACTICE] Implement ${topic} code exercise`, completed: false },
+        { taskId: `w${weekNum}-d${d}-t3`, title: `[REINFORCEMENT] Review ${topic} edge cases`, completed: false },
       ]
     });
   }
@@ -262,75 +307,12 @@ export const generateAIContent = async (prompt) => {
 };
 
 // ═══════════════════════════════════════════════════════════
-// GET /api/roadmap & GET /api/roadmap/core — Fetch Core Roadmap
+// GET /api/roadmap/core — Fetch Active Core Roadmap
 // ═══════════════════════════════════════════════════════════
-router.get('/', async (req, res) => {
-  try {
-    await runMigration(req.user._id);
-
-    let steps = await RoadmapStep.find({ userId: req.user._id, roadmapType: 'core' }).sort({ week: 1, day: 1 });
-
-    const user = await User.findById(req.user._id);
-    const weeks = user ? (user.timelineWeeks || 4) : 4;
-
-    if (steps.length === 0) {
-      const goal = user?.goal || 'DATA STRUCTURES';
-      const level = user?.level || 'intermediate';
-
-      console.log(`🧠 Generating Core AI roadmap for "${goal}" (${weeks} weeks, ${level} level)...`);
-      const prompt = buildRoadmapPrompt(goal, level, weeks);
-      const generatedSteps = await generateAIContent(prompt);
-
-      if (generatedSteps && Array.isArray(generatedSteps) && generatedSteps.length > 0) {
-        await RoadmapStep.insertMany(
-          generatedSteps.map((s, idx) => {
-            const dayNum = s.day || (idx + 1);
-            const weekNum = s.week && s.week > 0 ? s.week : Math.ceil(dayNum / 7);
-            const rawTasks = Array.isArray(s.tasks) && s.tasks.length > 0 ? s.tasks : [
-              { title: `[PRIMARY MISSION] Master ${s.dayName || 'Day Focus'}`, completed: false }
-            ];
-            return {
-              userId: req.user._id,
-              roadmapType: 'core',
-              projectId: null,
-              projectName: null,
-              week: weekNum,
-              day: dayNum,
-              phaseName: s.phaseName || `Week ${weekNum} Phase`,
-              dayName: s.dayName || `Day ${dayNum}: ${goal}`,
-              context: s.context || '',
-              completed: false,
-              tasks: rawTasks.map((t, tidx) => ({
-                taskId: t.taskId || `w${weekNum}-d${dayNum}-t${tidx + 1}`,
-                title: typeof t === 'string' ? t : (t.title || `Task ${tidx + 1}`),
-                completed: Boolean(t.completed)
-              }))
-            };
-          })
-        );
-      } else {
-        const fallback = generateSmartFallback(goal, level, weeks);
-        await RoadmapStep.insertMany(fallback.map((s) => ({
-          ...s,
-          userId: req.user._id,
-          roadmapType: 'core',
-          projectId: null,
-          projectName: null
-        })));
-      }
-
-      steps = await RoadmapStep.find({ userId: req.user._id, roadmapType: 'core' }).sort({ week: 1, day: 1 });
-    }
-    res.json(steps);
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-});
-
 router.get('/core', async (req, res) => {
   try {
     await runMigration(req.user._id);
-    let steps = await RoadmapStep.find({ userId: req.user._id, roadmapType: 'core' }).sort({ week: 1, day: 1 });
+    let steps = await RoadmapStep.find({ userId: req.user._id, roadmapType: 'core', isActive: true }).sort({ week: 1, day: 1 });
 
     if (steps.length === 0) {
       const user = await User.findById(req.user._id);
@@ -340,47 +322,44 @@ router.get('/core', async (req, res) => {
 
       console.log(`🧠 Generating Core AI roadmap for "${goal}" (${weeks} weeks, ${level} level)...`);
       const prompt = buildRoadmapPrompt(goal, level, weeks);
-      const generatedSteps = await generateAIContent(prompt);
+      let generatedSteps = await generateAIContent(prompt);
 
-      if (generatedSteps && Array.isArray(generatedSteps) && generatedSteps.length > 0) {
-        await RoadmapStep.insertMany(
-          generatedSteps.map((s, idx) => {
-            const dayNum = s.day || (idx + 1);
-            const weekNum = s.week && s.week > 0 ? s.week : Math.ceil(dayNum / 7);
-            const rawTasks = Array.isArray(s.tasks) && s.tasks.length > 0 ? s.tasks : [
-              { title: `[PRIMARY MISSION] Master ${s.dayName || 'Day Focus'}`, completed: false }
-            ];
-            return {
-              userId: req.user._id,
-              roadmapType: 'core',
-              projectId: null,
-              projectName: null,
-              week: weekNum,
-              day: dayNum,
-              phaseName: s.phaseName || `Week ${weekNum} Phase`,
-              dayName: s.dayName || `Day ${dayNum}: ${goal}`,
-              context: s.context || '',
-              completed: false,
-              tasks: rawTasks.map((t, tidx) => ({
-                taskId: t.taskId || `w${weekNum}-d${dayNum}-t${tidx + 1}`,
-                title: typeof t === 'string' ? t : (t.title || `Task ${tidx + 1}`),
-                completed: Boolean(t.completed)
-              }))
-            };
-          })
-        );
-      } else {
-        const fallback = generateSmartFallback(goal, level, weeks);
-        await RoadmapStep.insertMany(fallback.map((s) => ({
-          ...s,
-          userId: req.user._id,
-          roadmapType: 'core',
-          projectId: null,
-          projectName: null
-        })));
+      if (!validateRoadmapRelevance(goal, generatedSteps)) {
+        console.log(`⚠️ AI output irrelevant for "${goal}". Using domain-matched fallback generator...`);
+        generatedSteps = generateSmartFallback(goal, level, weeks);
       }
 
-      steps = await RoadmapStep.find({ userId: req.user._id, roadmapType: 'core' }).sort({ week: 1, day: 1 });
+      await RoadmapStep.insertMany(
+        generatedSteps.map((s, idx) => {
+          const dayNum = s.day || (idx + 1);
+          const weekNum = s.week && s.week > 0 ? s.week : Math.ceil(dayNum / 7);
+          const rawTasks = Array.isArray(s.tasks) && s.tasks.length > 0 ? s.tasks : [
+            { title: `[PRIMARY MISSION] Master ${s.dayName || 'Day Focus'}`, completed: false }
+          ];
+          return {
+            userId: req.user._id,
+            roadmapType: 'core',
+            roadmapVersion: 1,
+            isActive: true,
+            source: 'initial',
+            projectId: null,
+            projectName: null,
+            week: weekNum,
+            day: dayNum,
+            phaseName: s.phaseName || `Week ${weekNum} Phase`,
+            dayName: s.dayName || `Day ${dayNum}: ${goal}`,
+            context: s.context || '',
+            completed: false,
+            tasks: rawTasks.map((t, tidx) => ({
+              taskId: t.taskId || `w${weekNum}-d${dayNum}-t${tidx + 1}`,
+              title: typeof t === 'string' ? t : (t.title || `Task ${tidx + 1}`),
+              completed: Boolean(t.completed)
+            }))
+          };
+        })
+      );
+
+      steps = await RoadmapStep.find({ userId: req.user._id, roadmapType: 'core', isActive: true }).sort({ week: 1, day: 1 });
     }
     res.json(steps);
   } catch (err) {
@@ -389,64 +368,167 @@ router.get('/core', async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════════
-// PROJECT SPRINTS API ENDPOINTS
+// GET /api/roadmap — Default Roadmap Endpoint (Alias to Core Active)
 // ═══════════════════════════════════════════════════════════
-
-// GET /api/roadmap/projects — List user project sprints
-router.get('/projects', async (req, res) => {
+router.get('/', async (req, res) => {
   try {
     await runMigration(req.user._id);
-    const projects = await Project.find({ userId: req.user._id }).sort({ createdAt: -1 });
+    let steps = await RoadmapStep.find({ userId: req.user._id, roadmapType: 'core', isActive: true }).sort({ week: 1, day: 1 });
+    if (steps.length === 0) {
+      const user = await User.findById(req.user._id);
+      const weeks = user ? (user.timelineWeeks || 4) : 4;
+      const goal = user?.goal || 'DATA STRUCTURES';
+      const level = user?.level || 'intermediate';
 
-    // Sync live completed days count from RoadmapStep
-    const enrichedProjects = await Promise.all(projects.map(async (p) => {
-      const steps = await RoadmapStep.find({ userId: req.user._id, roadmapType: 'project', projectId: p.projectId });
-      const completedCount = steps.filter(s => s.completed).length;
-      const isDone = steps.length > 0 && completedCount === steps.length;
-      
-      if (p.completedDays !== completedCount || p.completed !== isDone) {
-        p.completedDays = completedCount;
-        p.completed = isDone;
-        await p.save();
+      console.log(`🧠 Generating Core AI roadmap for "${goal}" (${weeks} weeks, ${level} level)...`);
+      const prompt = buildRoadmapPrompt(goal, level, weeks);
+      let generatedSteps = await generateAIContent(prompt);
+
+      if (!validateRoadmapRelevance(goal, generatedSteps)) {
+        generatedSteps = generateSmartFallback(goal, level, weeks);
       }
-      return p;
-    }));
 
-    res.json(enrichedProjects);
+      await RoadmapStep.insertMany(
+        generatedSteps.map((s, idx) => {
+          const dayNum = s.day || (idx + 1);
+          const weekNum = s.week && s.week > 0 ? s.week : Math.ceil(dayNum / 7);
+          const rawTasks = Array.isArray(s.tasks) && s.tasks.length > 0 ? s.tasks : [
+            { title: `[PRIMARY MISSION] Master ${s.dayName || 'Day Focus'}`, completed: false }
+          ];
+          return {
+            userId: req.user._id,
+            roadmapType: 'core',
+            roadmapVersion: 1,
+            isActive: true,
+            source: 'initial',
+            projectId: null,
+            projectName: null,
+            week: weekNum,
+            day: dayNum,
+            phaseName: s.phaseName || `Week ${weekNum} Phase`,
+            dayName: s.dayName || `Day ${dayNum}: ${goal}`,
+            context: s.context || '',
+            completed: false,
+            tasks: rawTasks.map((t, tidx) => ({
+              taskId: t.taskId || `w${weekNum}-d${dayNum}-t${tidx + 1}`,
+              title: typeof t === 'string' ? t : (t.title || `Task ${tidx + 1}`),
+              completed: Boolean(t.completed)
+            }))
+          };
+        })
+      );
+      steps = await RoadmapStep.find({ userId: req.user._id, roadmapType: 'core', isActive: true }).sort({ week: 1, day: 1 });
+    }
+    res.json(steps);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 });
 
-// GET /api/roadmap/projects/:projectId — Fetch specific project sprint steps
+// ═══════════════════════════════════════════════════════════
+// GET /api/roadmap/history — Fetch Core Roadmap Version History
+// ═══════════════════════════════════════════════════════════
+router.get('/history', async (req, res) => {
+  try {
+    await runMigration(req.user._id);
+    const steps = await RoadmapStep.find({ userId: req.user._id, roadmapType: 'core' }).sort({ roadmapVersion: -1, day: 1 });
+
+    const versionMap = {};
+    steps.forEach(s => {
+      const v = s.roadmapVersion || 1;
+      if (!versionMap[v]) {
+        versionMap[v] = {
+          version: v,
+          source: s.source || 'initial',
+          isActive: Boolean(s.isActive),
+          createdAt: s.createdAt,
+          dayCount: 0
+        };
+      }
+      versionMap[v].dayCount += 1;
+    });
+
+    res.json(Object.values(versionMap));
+  } catch (err) { res.status(500).json({ message: err.message }); }
+});
+
+// ═══════════════════════════════════════════════════════════
+// POST /api/roadmap/restore/:version — Restore Previous Core Roadmap Version
+// ═══════════════════════════════════════════════════════════
+router.post('/restore/:version', async (req, res) => {
+  try {
+    const versionNum = parseInt(req.params.version, 10);
+    if (isNaN(versionNum)) return res.status(400).json({ message: 'Invalid version number' });
+
+    const targetSteps = await RoadmapStep.find({ userId: req.user._id, roadmapType: 'core', roadmapVersion: versionNum });
+    if (targetSteps.length === 0) {
+      return res.status(404).json({ message: `Core Roadmap Version v${versionNum} not found` });
+    }
+
+    await RoadmapStep.updateMany(
+      { userId: req.user._id, roadmapType: 'core' },
+      { $set: { isActive: false } }
+    );
+    await RoadmapStep.updateMany(
+      { userId: req.user._id, roadmapType: 'core', roadmapVersion: versionNum },
+      { $set: { isActive: true } }
+    );
+
+    res.json({ success: true, message: `Restored Core Roadmap Version v${versionNum}`, version: versionNum });
+  } catch (err) { res.status(500).json({ message: err.message }); }
+});
+
+// ═══════════════════════════════════════════════════════════
+// GET /api/roadmap/projects — List All Active Project Sprints
+// ═══════════════════════════════════════════════════════════
+router.get('/projects', async (req, res) => {
+  try {
+    await runMigration(req.user._id);
+    const projects = await Project.find({ userId: req.user._id }).sort({ createdAt: -1 });
+
+    const updatedProjects = await Promise.all(projects.map(async (p) => {
+      const steps = await RoadmapStep.find({ userId: req.user._id, roadmapType: 'project', projectId: p.projectId });
+      const completedDays = steps.filter(s => s.completed).length;
+      const isComplete = steps.length > 0 && completedDays === steps.length;
+      if (p.completedDays !== completedDays || p.completed !== isComplete) {
+        p.completedDays = completedDays;
+        p.completed = isComplete;
+        await p.save();
+      }
+      return p;
+    }));
+
+    res.json(updatedProjects);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════
+// GET /api/roadmap/projects/:projectId — Fetch Specific Project Sprint Steps
+// ═══════════════════════════════════════════════════════════
 router.get('/projects/:projectId', async (req, res) => {
   try {
     await runMigration(req.user._id);
-    const project = await Project.findOne({ userId: req.user._id, projectId: req.params.projectId });
+    const { projectId } = req.params;
+    const project = await Project.findOne({ userId: req.user._id, projectId });
     if (!project) return res.status(404).json({ message: 'Project Sprint not found' });
 
-    const steps = await RoadmapStep.find({
-      userId: req.user._id,
-      roadmapType: 'project',
-      projectId: req.params.projectId
-    }).sort({ day: 1 });
-
+    const steps = await RoadmapStep.find({ userId: req.user._id, roadmapType: 'project', projectId }).sort({ day: 1 });
     res.json({ project, steps });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 });
 
-// DELETE /api/roadmap/projects/:projectId — Delete a specific project sprint
+// ═══════════════════════════════════════════════════════════
+// DELETE /api/roadmap/projects/:projectId — Delete Project Sprint
+// ═══════════════════════════════════════════════════════════
 router.delete('/projects/:projectId', async (req, res) => {
   try {
-    await runMigration(req.user._id);
-    const project = await Project.findOne({ userId: req.user._id, projectId: req.params.projectId });
-    if (!project) return res.status(404).json({ message: 'Project Sprint not found' });
-
-    await Project.deleteOne({ userId: req.user._id, projectId: req.params.projectId });
-    await RoadmapStep.deleteMany({ userId: req.user._id, roadmapType: 'project', projectId: req.params.projectId });
-
+    const { projectId } = req.params;
+    await RoadmapStep.deleteMany({ userId: req.user._id, roadmapType: 'project', projectId });
+    await Project.deleteOne({ userId: req.user._id, projectId });
     res.json({ success: true, message: 'Project Sprint deleted successfully' });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -454,7 +536,7 @@ router.delete('/projects/:projectId', async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════════
-// POST /api/roadmap/analyze-resume — Optimize Core Roadmap via Resume
+// POST /api/roadmap/analyze-resume — AI Resume Skill Gap Optimization
 // ═══════════════════════════════════════════════════════════
 router.post('/analyze-resume', async (req, res) => {
   try {
@@ -467,23 +549,29 @@ router.post('/analyze-resume', async (req, res) => {
     const user = await User.findById(req.user._id);
     if (!user) return res.status(401).json({ message: 'Authenticated user not found' });
 
-    const goal = user.goal || 'Software Engineering';
+    const goal = user.goal || 'DATA STRUCTURES';
     const weeks = user.timelineWeeks || 4;
 
-    const prompt = `Analyze this resume against the target career goal: "${goal}". 
-    1. Identify what skills the user ALREADY has.
-    2. Identify the GAPS needed for the objective.
-    3. Generate a refined, intensive learning roadmap for ${weeks} weeks (${weeks * 7} total days) focusing ONLY on the gaps.
-    
-    Resume: ${resumeText.trim()}
-    
-    Output format: STRICT JSON array matching the roadmap schema (week, day, phaseName, dayName, context, tasks).`;
+    const prompt = `Analyze this resume against the user's TARGET GOAL: "${goal}". 
+1. Identify what skills the user ALREADY has.
+2. Identify the GAPS needed specifically for "${goal}".
+3. Generate a refined, intensive learning roadmap for ${weeks} weeks (${weeks * 7} total days) focusing ONLY on the gaps within "${goal}".
+
+CRITICAL CONSTRAINT: All topics MUST remain strictly within "${goal}". DO NOT introduce unrelated framework topics.
+
+Resume: ${resumeText.trim()}
+
+Output format: STRICT JSON array matching the roadmap schema (week, day, phaseName, dayName, context, tasks).`;
 
     let generatedSteps = await generateAIContent(prompt);
-    if (!generatedSteps || !Array.isArray(generatedSteps) || generatedSteps.length === 0) {
-      console.log('⚠️ Resume analysis using smart fallback generator...');
+    if (!validateRoadmapRelevance(goal, generatedSteps)) {
+      console.log(`⚠️ AI Resume output irrelevant or failed. Using smart fallback for "${goal}"...`);
       generatedSteps = generateSmartFallback(goal, user.level || 'intermediate', weeks);
     }
+
+    // Calculate next version
+    const lastStep = await RoadmapStep.findOne({ userId: req.user._id, roadmapType: 'core' }).sort({ roadmapVersion: -1 });
+    const nextVersion = lastStep ? (lastStep.roadmapVersion || 1) + 1 : 1;
 
     // Map and validate new core steps
     const newCoreDocs = generatedSteps.map((s, idx) => {
@@ -495,6 +583,9 @@ router.post('/analyze-resume', async (req, res) => {
       return {
         userId: req.user._id,
         roadmapType: 'core',
+        roadmapVersion: nextVersion,
+        isActive: true,
+        source: 'resume_optimization',
         projectId: null,
         projectName: null,
         week: weekNum,
@@ -511,20 +602,18 @@ router.post('/analyze-resume', async (req, res) => {
       };
     });
 
-    // Save new core steps FIRST
-    const insertedDocs = await RoadmapStep.insertMany(newCoreDocs);
-    const newDocIds = insertedDocs.map(doc => doc._id);
+    // Save new version FIRST
+    await RoadmapStep.insertMany(newCoreDocs);
 
-    // Remove old core steps ONLY after insertion succeeds (Leaves Project Sprints 100% untouched!)
-    await RoadmapStep.deleteMany({
-      userId: req.user._id,
-      roadmapType: 'core',
-      _id: { $nin: newDocIds }
-    });
+    // Deactivate previous core versions (NEVER DELETE!)
+    await RoadmapStep.updateMany(
+      { userId: req.user._id, roadmapType: 'core', roadmapVersion: { $ne: nextVersion } },
+      { $set: { isActive: false } }
+    );
 
     await User.findByIdAndUpdate(req.user._id, { currentRoadmapDay: 1 });
 
-    return res.json({ success: true, message: 'Core roadmap optimized via resume analysis', count: generatedSteps.length });
+    return res.json({ success: true, message: 'Core roadmap optimized via resume analysis', version: nextVersion, count: generatedSteps.length });
   } catch (err) {
     console.error('❌ Resume analysis error:', err.message);
     res.status(500).json({ message: "We couldn't analyze your resume right now. Your existing roadmap is safe. Please try again." });
@@ -549,15 +638,15 @@ router.post('/analyze-assignment', async (req, res) => {
     const projectId = `proj_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
 
     const prompt = `Break this assignment/project specification into a step-by-step implementation sprint roadmap for exactly 7 days (1 week).
-    Project Title: "${projectTitle}"
-    Assignment Specification: ${assignmentText.trim()}
-    
-    Output format: STRICT JSON array matching the roadmap schema (week: 1, day: 1-7, phaseName: "Project Sprint", dayName, context, tasks).`;
+Project Title: "${projectTitle}"
+Assignment Specification: ${assignmentText.trim()}
+
+Output format: STRICT JSON array matching the roadmap schema (week: 1, day: 1-7, phaseName: "Project Sprint", dayName, context, tasks).`;
 
     let generatedSteps = await generateAIContent(prompt);
     if (!generatedSteps || !Array.isArray(generatedSteps) || generatedSteps.length === 0) {
       console.log('⚠️ Assignment parser using smart fallback generator...');
-      generatedSteps = generateSmartFallback('Project Sprint', 'intermediate', 1);
+      generatedSteps = generateSmartFallback(projectTitle, 'intermediate', 1);
     }
 
     // Ensure 7 days
@@ -587,6 +676,9 @@ router.post('/analyze-assignment', async (req, res) => {
       return {
         userId: req.user._id,
         roadmapType: 'project',
+        roadmapVersion: 1,
+        isActive: true,
+        source: 'assignment_parser',
         projectId,
         projectName: projectTitle,
         week: weekNum,
@@ -626,6 +718,84 @@ router.post('/analyze-assignment', async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════════
+// POST /api/roadmap — Goal Update / Roadmap Regeneration
+// ═══════════════════════════════════════════════════════════
+router.post('/', async (req, res) => {
+  try {
+    await runMigration(req.user._id);
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(401).json({ message: 'User not found' });
+
+    const goal = req.body.goal || user.goal || 'DATA STRUCTURES';
+    const level = req.body.level || user.level || 'intermediate';
+    const weeks = req.body.timelineWeeks || user.timelineWeeks || 4;
+
+    const prompt = buildRoadmapPrompt(goal, level, weeks);
+    let generatedSteps = await generateAIContent(prompt);
+
+    if (!validateRoadmapRelevance(goal, generatedSteps)) {
+      generatedSteps = generateSmartFallback(goal, level, weeks);
+    }
+
+    const lastStep = await RoadmapStep.findOne({ userId: req.user._id, roadmapType: 'core' }).sort({ roadmapVersion: -1 });
+    const nextVersion = lastStep ? (lastStep.roadmapVersion || 1) + 1 : 1;
+
+    const newCoreDocs = generatedSteps.map((s, idx) => {
+      const dayNum = s.day || (idx + 1);
+      const weekNum = s.week && s.week > 0 ? s.week : Math.ceil(dayNum / 7);
+      const rawTasks = Array.isArray(s.tasks) && s.tasks.length > 0 ? s.tasks : [
+        { title: `[PRIMARY MISSION] Master ${s.dayName || 'Day Focus'}`, completed: false }
+      ];
+      return {
+        userId: req.user._id,
+        roadmapType: 'core',
+        roadmapVersion: nextVersion,
+        isActive: true,
+        source: 'goal_update',
+        projectId: null,
+        projectName: null,
+        week: weekNum,
+        day: dayNum,
+        phaseName: s.phaseName || `Phase ${weekNum}`,
+        dayName: s.dayName || `Day ${dayNum}: ${goal}`,
+        context: s.context || `Curriculum Day ${dayNum}`,
+        completed: false,
+        tasks: rawTasks.map((t, tidx) => ({
+          taskId: typeof t === 'object' && t.taskId ? t.taskId : `w${weekNum}-d${dayNum}-t${tidx + 1}`,
+          title: typeof t === 'string' ? t : (t.title || `Task ${tidx + 1}`),
+          completed: false
+        }))
+      };
+    });
+
+    await RoadmapStep.insertMany(newCoreDocs);
+    await RoadmapStep.updateMany(
+      { userId: req.user._id, roadmapType: 'core', roadmapVersion: { $ne: nextVersion } },
+      { $set: { isActive: false } }
+    );
+
+    await User.findByIdAndUpdate(req.user._id, { goal, level, timelineWeeks: weeks, currentRoadmapDay: 1 });
+
+    return res.json({ success: true, message: 'Core roadmap generated successfully', version: nextVersion, count: newCoreDocs.length });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════
+// DELETE /api/roadmap — Reset Active Core Roadmap
+// ═══════════════════════════════════════════════════════════
+router.delete('/', async (req, res) => {
+  try {
+    await RoadmapStep.updateMany(
+      { userId: req.user._id, roadmapType: 'core' },
+      { $set: { isActive: false } }
+    );
+    res.json({ message: 'Active Core Roadmap reset successfully' });
+  } catch (err) { res.status(500).json({ message: err.message }); }
+});
+
+// ═══════════════════════════════════════════════════════════
 // GET /api/roadmap/today — Get current day's module
 // ═══════════════════════════════════════════════════════════
 router.get('/today', async (req, res) => {
@@ -639,7 +809,10 @@ router.get('/today', async (req, res) => {
        step = await RoadmapStep.findOne({ userId: req.user._id, roadmapType: 'project', projectId }).sort({ day: 1 });
      } else {
        const currentDay = user ? (user.currentRoadmapDay || 1) : 1;
-       step = await RoadmapStep.findOne({ userId: req.user._id, roadmapType: 'core', day: currentDay });
+       step = await RoadmapStep.findOne({ userId: req.user._id, roadmapType: 'core', isActive: true, day: currentDay });
+       if (!step) {
+         step = await RoadmapStep.findOne({ userId: req.user._id, roadmapType: 'core', isActive: true }).sort({ day: 1 });
+       }
        if (!step) {
          const goal = user ? (user.goal || 'DATA STRUCTURES') : 'DATA STRUCTURES';
          const level = user ? (user.level || 'intermediate') : 'intermediate';
@@ -649,16 +822,19 @@ router.get('/today', async (req, res) => {
            ...s,
            userId: req.user._id,
            roadmapType: 'core',
+           roadmapVersion: 1,
+           isActive: true,
+           source: 'initial',
            projectId: null,
            projectName: null
          })));
-         step = await RoadmapStep.findOne({ userId: req.user._id, roadmapType: 'core', day: currentDay });
+         step = await RoadmapStep.findOne({ userId: req.user._id, roadmapType: 'core', isActive: true, day: currentDay });
        }
      }
 
      const totalDays = await RoadmapStep.countDocuments({
        userId: req.user._id,
-       ...(roadmapType === 'project' && projectId ? { roadmapType: 'project', projectId } : { roadmapType: 'core' })
+       ...(roadmapType === 'project' && projectId ? { roadmapType: 'project', projectId } : { roadmapType: 'core', isActive: true })
      });
 
      res.json({ currentDay: step ? step.day : 1, totalDays, step });
@@ -680,6 +856,7 @@ router.patch('/:day/task/:taskId', async (req, res) => {
       query.projectId = projectId;
     } else {
       query.roadmapType = 'core';
+      query.isActive = true;
     }
 
     const step = await RoadmapStep.findOne(query);
@@ -728,6 +905,7 @@ router.patch('/:day/complete', async (req, res) => {
       query.projectId = projectId;
     } else {
       query.roadmapType = 'core';
+      query.isActive = true;
     }
 
     const step = await RoadmapStep.findOne(query);
@@ -788,13 +966,13 @@ const getTopicSpecificFallback = (topic, phase, dayNum, goal) => {
       title: topic,
       phase: phase,
       subtitle: 'Eliminate data redundancy, update anomalies, and transitive dependencies via 1NF, 2NF, and 3NF table decomposition.',
-      whyMatters: 'Database normalization ensures data integrity, prevents insertion/update/deletion anomalies, and reduces storage overhead in relational engines.',
-      codeSnippet: `-- 3NF Normalized Schema Example\nCREATE TABLE Students (\n    student_id INT PRIMARY KEY,\n    student_name VARCHAR(100)\n);\n\nCREATE TABLE Courses (\n    course_id INT PRIMARY KEY,\n    course_name VARCHAR(100)\n);\n\nCREATE TABLE Enrollments (\n    student_id INT REFERENCES Students(student_id),\n    course_id INT REFERENCES Courses(course_id),\n    grade VARCHAR(2),\n    PRIMARY KEY (student_id, course_id)\n);`,
-      quizQuestion: 'What type of dependency is eliminated when decomposing a relational table from 2NF to 3NF?',
+      whyMatters: 'Database normalization is essential for maintaining referential integrity and scaling relational schemas.',
+      codeSnippet: `-- 1NF -> 2NF -> 3NF Normalization Example\nCREATE TABLE Users (\n    user_id INT PRIMARY KEY,\n    email VARCHAR(255) UNIQUE NOT NULL\n);\n\nCREATE TABLE Orders (\n    order_id INT PRIMARY KEY,\n    user_id INT REFERENCES Users(user_id),\n    total_amount DECIMAL(10, 2)\n);`,
+      quizQuestion: 'What defines Third Normal Form (3NF)?',
       quizOptions: [
-        { id: 'A', text: 'Transitive dependency (non-prime attribute depending on another non-prime attribute).', correct: true },
-        { id: 'B', text: 'Partial dependency on a composite primary key.' },
-        { id: 'C', text: 'Multi-valued repeating column groups.' }
+        { id: 'A', text: 'It must be in 2NF and have no transitive functional dependencies on non-primary key attributes.', correct: true },
+        { id: 'B', text: 'It allows repeating groups of arrays.' },
+        { id: 'C', text: 'It requires all tables to be merged into a single flat file.' }
       ]
     };
   }
@@ -853,24 +1031,6 @@ const getTopicSpecificFallback = (topic, phase, dayNum, goal) => {
     };
   }
 
-  if (tLower.includes('ddl') || tLower.includes('dml') || tLower.includes('foreign key') || tLower.includes('cascade')) {
-    return {
-      hasSimulation: true,
-      visualType: 'SQL_SCHEMA_RELATIONSHIP',
-      title: topic,
-      phase: phase,
-      subtitle: 'Understand DDL schema definitions (CREATE/ALTER/DROP) vs DML data modifications (INSERT/UPDATE/DELETE) and Foreign Key CASCADE rules.',
-      whyMatters: 'DDL defines database structures and constraints, while DML manipulates records. Foreign Key CASCADE rules maintain referential integrity automatically.',
-      codeSnippet: `-- DDL: Create Parent & Child Tables with Foreign Key CASCADE\nCREATE TABLE Departments (\n    dept_id INT PRIMARY KEY,\n    dept_name VARCHAR(100) NOT NULL\n);\n\nCREATE TABLE Employees (\n    emp_id INT PRIMARY KEY,\n    emp_name VARCHAR(100),\n    dept_id INT,\n    CONSTRAINT fk_dept FOREIGN KEY (dept_id)\n        REFERENCES Departments(dept_id)\n        ON DELETE CASCADE\n        ON UPDATE CASCADE\n);\n\nINSERT INTO Departments VALUES (1, 'Engineering');\nINSERT INTO Employees VALUES (101, 'Alice', 1);\n\nDELETE FROM Departments WHERE dept_id = 1;`,
-      quizQuestion: 'In a relational database, what happens when a parent row is deleted if the foreign key constraint is configured with ON DELETE CASCADE?',
-      quizOptions: [
-        { id: 'A', text: 'All matching child rows in the referencing table are automatically deleted.', correct: true },
-        { id: 'B', text: 'The database throws a Foreign Key Constraint Violation error.' },
-        { id: 'C', text: 'The parent row is set to NULL while child rows remain unchanged.' }
-      ]
-    };
-  }
-
   return {
     hasSimulation: false,
     visualType: 'NONE',
@@ -921,6 +1081,7 @@ router.get('/concept/:day', async (req, res) => {
       query.projectId = projectId;
     } else {
       query.roadmapType = 'core';
+      query.isActive = true;
     }
 
     const step = await RoadmapStep.findOne(query);
@@ -948,57 +1109,34 @@ router.get('/concept/:day', async (req, res) => {
 
 Generate a STRICT JSON object matching this schema:
 {
-  "hasSimulation": ${expectedVisualType !== 'NONE'},
+  "hasSimulation": boolean,
   "visualType": "${expectedVisualType}",
   "title": "${topic}",
   "phase": "${phase}",
-  "subtitle": "Short 1-2 sentence description of ${topic}.",
-  "whyMatters": "Deep technical explanation of why ${topic} is critical in production systems.",
-  "codeSnippet": "Runnable code or SQL schema example directly illustrating ${topic}.",
-  "quizQuestion": "Multiple-choice interview question specifically testing ${topic}.",
+  "subtitle": "Clear 1-sentence technical summary of ${topic}",
+  "whyMatters": "Clear 1-sentence explanation of why ${topic} is critical in production",
+  "codeSnippet": "Production-ready code example demonstrating ${topic}",
+  "quizQuestion": "A multiple-choice question testing understanding of ${topic}",
   "quizOptions": [
-    { "id": "A", "text": "Correct answer testing ${topic}.", "correct": true },
+    { "id": "A", "text": "Option A text", "correct": boolean },
     { "id": "B", "text": "Option B text" },
     { "id": "C", "text": "Option C text" }
   ]
-}
-Output ONLY raw valid JSON. No markdown backticks.`;
+}`;
 
-    try {
-      const model = getGenAI().getGenerativeModel({ model: 'gemini-2.5-flash' });
-      const result = await model.generateContent({
-        contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        generationConfig: { responseMimeType: "application/json" },
-      });
-
-      let textStr = result.response.text();
-      const jsonStart = textStr.indexOf('{');
-      const jsonEnd = textStr.lastIndexOf('}');
-      if (jsonStart !== -1 && jsonEnd !== -1) {
-        textStr = textStr.substring(jsonStart, jsonEnd + 1);
-      }
-      const parsedConcept = JSON.parse(textStr);
-      parsedConcept.visualType = expectedVisualType;
-      parsedConcept.hasSimulation = expectedVisualType !== 'NONE';
-
-      return res.json({ day: dayNum, step, concept: parsedConcept });
-    } catch (aiErr) {
-      console.warn("⚠️ AI Concept Generation fallback used:", aiErr.message);
-      return res.json({ day: dayNum, step, concept: getTopicSpecificFallback(topic, phase, dayNum, goal) });
+    let aiResult = await generateAIContent(prompt);
+    if (!aiResult || typeof aiResult !== 'object' || !aiResult.title) {
+      console.log(`⚠️ AI Concept Generation fallback used for "${topic}"...`);
+      aiResult = getTopicSpecificFallback(topic, phase, dayNum, goal);
+    } else {
+      aiResult.visualType = expectedVisualType;
+      aiResult.hasSimulation = expectedVisualType !== 'NONE';
     }
-  } catch (err) { res.status(500).json({ message: err.message }); }
-});
 
-// ═══════════════════════════════════════════════════════════
-// DELETE /api/roadmap — Reset Core Roadmap (for re-generation)
-// ═══════════════════════════════════════════════════════════
-router.delete('/', async (req, res) => {
-  try {
-    await runMigration(req.user._id);
-    await RoadmapStep.deleteMany({ userId: req.user._id, roadmapType: 'core' });
-    await User.findByIdAndUpdate(req.user._id, { currentRoadmapDay: 1 });
-    res.json({ message: 'Core roadmap reset successfully' });
-  } catch (err) { res.status(500).json({ message: err.message }); }
+    res.json({ ...aiResult, concept: aiResult });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
 });
 
 export default router;

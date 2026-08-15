@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ArrowRight, ChevronDown, ChevronUp, Sparkles, Clock, Target, Plus, CheckCircle2, Play, BookOpen, X, Check, Loader, Upload, FileText, FileCode, Trash2, LayoutGrid, Compass } from 'lucide-react';
+import { ArrowRight, ChevronDown, ChevronUp, Sparkles, Clock, Target, Plus, CheckCircle2, Play, BookOpen, X, Check, Loader, Upload, FileText, FileCode, Trash2, LayoutGrid, Compass, RotateCcw, History } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { USER_PROFILE, CORE_GOALS, TIMELINES, LEVELS, getRoadmapByGoal, DSA_ROADMAP } from '../constants/userProfile';
 import api from '../utils/api';
@@ -45,8 +45,13 @@ const Roadmap = () => {
   const [showGoalModal, setShowGoalModal] = useState(false);
   const [loadingBackend, setLoadingBackend] = useState(true);
 
-  // Core Roadmap State
+  // Core Roadmap State & Versioning
   const [coreRoadmapData, setCoreRoadmapData] = useState(() => getRoadmapByGoal(selectedGoal, timeline, level));
+  const [coreVersion, setCoreVersion] = useState(1);
+  const [coreSource, setCoreSource] = useState('initial');
+  const [versionHistory, setVersionHistory] = useState([]);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [restoringVersion, setRestoringVersion] = useState(false);
 
   // Project Sprints State
   const [projectsList, setProjectsList] = useState([]);
@@ -81,6 +86,9 @@ const Roadmap = () => {
     try {
       const steps = await api('/api/roadmap/core');
       if (Array.isArray(steps) && steps.length > 0) {
+        setCoreVersion(steps[0].roadmapVersion || 1);
+        setCoreSource(steps[0].source || 'initial');
+
         const weekMap = {};
         steps.forEach(step => {
           const dayNum = step.day || 1;
@@ -96,7 +104,7 @@ const Roadmap = () => {
               current: w === 1,
               progress: 0,
               duration: '7 Days',
-              whyMatters: step.context || 'Core technical capability milestone.',
+              whyMatters: step.context || `Core technical capability milestone for ${selectedGoal}.`,
               days: []
             };
           }
@@ -142,6 +150,31 @@ const Roadmap = () => {
     }
   };
 
+  // Fetch Version History
+  const fetchVersionHistory = async () => {
+    try {
+      const history = await api('/api/roadmap/history');
+      if (Array.isArray(history)) setVersionHistory(history);
+    } catch (_) {}
+  };
+
+  // Restore Previous Version
+  const handleRestoreVersion = async (versionNum) => {
+    setRestoringVersion(true);
+    try {
+      await api(`/api/roadmap/restore/${versionNum}`, { method: 'POST' });
+      await fetchCoreRoadmap();
+      await fetchVersionHistory();
+      setShowHistoryModal(false);
+      setSuccessBanner(`Restored Core Roadmap Version v${versionNum}`);
+      setTimeout(() => setSuccessBanner(''), 5000);
+    } catch (err) {
+      alert(err.message || 'Could not restore version');
+    } finally {
+      setRestoringVersion(false);
+    }
+  };
+
   // Fetch Projects List
   const fetchProjectsList = async () => {
     setLoadingProjects(true);
@@ -176,7 +209,7 @@ const Roadmap = () => {
 
   useEffect(() => {
     setLoadingBackend(true);
-    Promise.all([fetchCoreRoadmap(), fetchProjectsList()]).finally(() => {
+    Promise.all([fetchCoreRoadmap(), fetchProjectsList(), fetchVersionHistory()]).finally(() => {
       setLoadingBackend(false);
     });
 
@@ -188,6 +221,7 @@ const Roadmap = () => {
     const handleUpdate = () => {
       fetchCoreRoadmap();
       fetchProjectsList();
+      fetchVersionHistory();
       if (activeProject) fetchProjectSteps(activeProject.projectId);
     };
 
@@ -310,7 +344,7 @@ const Roadmap = () => {
           });
           setResumeText(parsed.text || '');
         } catch (err) {
-          setResumeError(err.message || 'Failed to extract text from document');
+          setResumeError(err.message || "We couldn't extract text from this document. Please try another file or paste your resume text below.");
         } finally {
           setResumeParsing(false);
         }
@@ -362,7 +396,7 @@ const Roadmap = () => {
           });
           setAssignmentText(parsed.text || '');
         } catch (err) {
-          setAssignmentError(err.message || 'Failed to extract text from document');
+          setAssignmentError(err.message || "We couldn't extract text from this document. Please try another file or paste your project specs below.");
         } finally {
           setAssignmentParsing(false);
         }
@@ -375,7 +409,7 @@ const Roadmap = () => {
     }
   };
 
-  // Analyze Resume -> Updates CORE ROADMAP
+  // Analyze Resume -> Updates CORE ROADMAP with versioning
   const handleAnalyzeResume = async (e) => {
     e.preventDefault();
     if (!resumeText || resumeText.trim().length < 5) {
@@ -390,16 +424,17 @@ const Roadmap = () => {
         body: JSON.stringify({ resumeText: resumeText.trim() })
       });
       await fetchCoreRoadmap();
+      await fetchVersionHistory();
       window.dispatchEvent(new CustomEvent('gdx_roadmap_updated'));
       setShowResumeModal(false);
       setResumeText('');
       setResumeFileName('');
       setActiveTab('core');
       setSearchParams({});
-      setSuccessBanner(res.message || 'Core Roadmap Updated: Personalized gap-focused roadmap generated.');
+      setSuccessBanner(res.message || `Core Roadmap Optimized (v${res.version || 2}): Tailored based on your skill gaps.`);
       setTimeout(() => setSuccessBanner(''), 8000);
     } catch (err) {
-      setResumeError(err.message || 'Could not analyze resume. Please try again.');
+      setResumeError(err.message || "We couldn't analyze your resume right now. Your existing roadmap is safe. Please try again.");
     } finally {
       setResumeAnalyzing(false);
     }
@@ -444,24 +479,22 @@ const Roadmap = () => {
   const handleGoalSubmit = async (e) => {
     e.preventDefault();
     setLoadingBackend(true);
-    const newRoadmap = getRoadmapByGoal(selectedGoal, timeline, level);
-    setCoreRoadmapData(newRoadmap);
-    setExpandedWeek(1);
     setShowGoalModal(false);
 
     try {
-      await api('/api/roadmap', { method: 'DELETE' });
       const weeksInt = parseInt(timeline) || 4;
-      await api('/api/profile', {
-        method: 'PUT',
+      await api('/api/roadmap', {
+        method: 'POST',
         body: JSON.stringify({ goal: selectedGoal, level, timelineWeeks: weeksInt })
       });
       if (setUser && user) {
         setUser({ ...user, goal: selectedGoal, level, timelineWeeks: weeksInt });
       }
       await fetchCoreRoadmap();
-    } catch {
-      /* fallback gracefully */
+      await fetchVersionHistory();
+      setExpandedWeek(1);
+    } catch (err) {
+      alert(err.message || 'Failed to generate roadmap');
     } finally {
       setLoadingBackend(false);
     }
@@ -525,20 +558,38 @@ const Roadmap = () => {
             <span className="px-3 py-1 bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 rounded-full text-xs font-mono font-bold">
               ⏱ {timeline} TIMELINE
             </span>
-            <span className="px-3 py-1 bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 rounded-full text-xs font-mono font-bold">
-              LIVE DATABASE
-            </span>
+            {coreSource === 'resume_optimization' ? (
+              <span className="px-3 py-1 bg-gradient-to-r from-amber-500 to-emerald-500 text-zinc-950 rounded-full text-xs font-mono font-extrabold shadow-sm flex items-center gap-1">
+                <Sparkles size={13} /> AI RESUME OPTIMIZED (v{coreVersion})
+              </span>
+            ) : (
+              <span className="px-3 py-1 bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 rounded-full text-xs font-mono font-bold">
+                PERSONALIZED (v{coreVersion})
+              </span>
+            )}
           </div>
 
           <h1 className="text-3xl md:text-4xl font-extrabold font-display text-zinc-900 dark:text-white tracking-tight">
             {selectedGoal}
           </h1>
           <p className="text-xs text-zinc-500 font-medium">
-            GuideX Career Preparation & Implementation Sprint Architecture.
+            {coreSource === 'resume_optimization'
+              ? 'Optimized using your resume to prioritize relevant skill gaps.'
+              : 'GuideX Long-Term Curriculum Architecture.'}
           </p>
         </div>
 
         <div className="flex items-center gap-2 flex-wrap shrink-0">
+          {versionHistory.length > 1 && (
+            <button
+              onClick={() => setShowHistoryModal(true)}
+              className="bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-200 font-bold text-xs py-2.5 px-3.5 rounded-full transition-all flex items-center gap-1.5 cursor-pointer"
+              title="View & Restore Previous Core Roadmap Versions"
+            >
+              <History size={14} className="text-amber-500" /> Version v{coreVersion}
+            </button>
+          )}
+
           <button
             onClick={() => setShowGoalModal(true)}
             className="bg-[#F5C542] hover:bg-[#E5B532] text-zinc-950 font-bold text-xs py-2.5 px-4 rounded-full shadow-pill transition-all flex items-center gap-1.5 cursor-pointer"
@@ -609,6 +660,61 @@ const Roadmap = () => {
         )}
       </div>
 
+      {/* Version History Modal */}
+      {showHistoryModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl p-6 md:p-8 max-w-md w-full space-y-5 shadow-2xl animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-mono font-bold text-amber-500 uppercase tracking-widest block">ROADMAP VERSION CONTROL</span>
+                <h3 className="text-xl font-extrabold font-display text-zinc-900 dark:text-white mt-0.5">
+                  Core Roadmap Version History
+                </h3>
+              </div>
+              <button onClick={() => setShowHistoryModal(false)} className="p-1 text-zinc-400 hover:text-zinc-700 dark:hover:text-white cursor-pointer">
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="space-y-3 max-h-60 overflow-y-auto pr-1">
+              {versionHistory.map(vh => (
+                <div key={vh.version} className={`p-4 rounded-2xl border flex items-center justify-between gap-3 ${
+                  vh.isActive 
+                    ? 'bg-amber-50 dark:bg-amber-950/40 border-[#F5C542]' 
+                    : 'bg-zinc-50 dark:bg-zinc-800/40 border-zinc-200 dark:border-zinc-700'
+                }`}>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-mono font-bold text-zinc-900 dark:text-white">
+                        Version v{vh.version}
+                      </span>
+                      {vh.isActive && (
+                        <span className="text-[9px] font-mono font-extrabold bg-amber-500 text-zinc-950 px-2 py-0.5 rounded-full">
+                          ACTIVE
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-[10px] text-zinc-500 block mt-0.5">
+                      Source: {vh.source === 'resume_optimization' ? 'AI Resume Gap Import' : 'Initial Generation'} · {vh.dayCount} Days
+                    </span>
+                  </div>
+
+                  {!vh.isActive && (
+                    <button
+                      disabled={restoringVersion}
+                      onClick={() => handleRestoreVersion(vh.version)}
+                      className="px-3 py-1.5 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 font-bold text-xs rounded-xl hover:bg-amber-500 hover:text-zinc-950 transition-all flex items-center gap-1 cursor-pointer"
+                    >
+                      <RotateCcw size={12} /> Restore
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* AI Resume Gap Import Modal */}
       {showResumeModal && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
@@ -634,7 +740,7 @@ const Roadmap = () => {
             </p>
 
             {resumeError && (
-              <div className="p-3.5 rounded-2xl bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs font-bold font-mono">
+              <div className="p-3.5 rounded-2xl bg-amber-50 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-700 text-amber-900 dark:text-amber-200 text-xs font-bold font-mono">
                 ⚠️ {resumeError}
               </div>
             )}
@@ -891,9 +997,14 @@ const Roadmap = () => {
             <div className="flex items-center gap-2">
               <Sparkles size={15} className="text-amber-500 shrink-0" />
               <span className="text-zinc-800 dark:text-zinc-200 font-medium">
-                <strong className="font-bold">CORE ROADMAP:</strong> Long-term career preparation ({coreRoadmapData.length * 7} Days) for {selectedGoal}.
+                <strong className="font-bold">CORE ROADMAP (v{coreVersion}):</strong> Long-term career preparation ({coreRoadmapData.length * 7} Days) for {selectedGoal}.
               </span>
             </div>
+            {coreSource === 'resume_optimization' && (
+              <span className="text-[10px] font-mono font-extrabold text-amber-800 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/80 px-2.5 py-0.5 rounded-full border border-amber-300 dark:border-amber-700 shrink-0">
+                AI RESUME OPTIMIZED
+              </span>
+            )}
           </div>
 
           <div className="space-y-5">
